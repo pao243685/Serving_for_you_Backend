@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.config import settings
+from app.core.config import settings
 
 # Rutas que no exigen origen (el healthcheck del servidor, por ejemplo)
 EXEMPT_PATHS = {"/health"}

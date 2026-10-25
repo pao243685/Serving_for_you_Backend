@@ -2,9 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, InvalidHashError
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
-from app.config import settings
+from app.core.config import settings
 
 _ph = PasswordHasher()
 # Hash falso para que el login tarde igual exista o no el correo

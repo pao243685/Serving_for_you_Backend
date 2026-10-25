@@ -1,10 +1,7 @@
-import math
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator, model_validator
-
-from app.models import CategoriaPostre
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 Telefono = Field(pattern=r"^[0-9]{10}$")
 
@@ -76,66 +73,3 @@ class UsuarioOut(BaseModel):
     id: uuid.UUID
     correo: str
     rol: str
-
-
-class DistribuidorOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id_distribuidor: uuid.UUID
-    nombre_marca: str
-    nombre_encargado: str
-
-
-class ProductoOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id_producto: uuid.UUID
-    nombre: str
-    precio_unitario: float
-    unidad_medida: str
-    tamano: str | None
-    categoria: CategoriaPostre
-    descripcion_producto: str | None
-    imagen_url: str
-    # gramaje: float | None = None  # si agregas la columna
-
-
-class ProductosPage(BaseModel):
-    distribuidor: DistribuidorOut
-    productos: list[ProductoOut]
-    page: int
-    page_size: int
-    total: int
-    total_pages: int
-
-    @staticmethod
-    def pages(total: int, page_size: int) -> int:
-        return math.ceil(total / page_size) if total else 0
-
-class ProductoCreate(BaseModel):
-    nombre: str = Field(min_length=1, max_length=255)
-    unidad_medida: Literal["KG", "L", "PZ"]
-    tamano: Literal["PEQUEÑO", "MEDIANO", "GRANDE"] | None = None
-    precio_unitario: float = Field(gt=0, le=1_000_000)
-    categoria: CategoriaPostre
-    descripcion_producto: str | None = Field(default=None, max_length=1000)
-    imagen_url: HttpUrl
-
-    @field_validator("nombre")
-    @classmethod
-    def nombre_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("No puede estar vacío")
-        return v
-
-    @field_validator("descripcion_producto")
-    @classmethod
-    def descripcion_limpia(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        v = v.strip()
-        return v or None
-
-
-class ProductoCreado(ProductoOut):
-    codigo_generado: str
-    activo: bool

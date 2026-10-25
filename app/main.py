@@ -1,20 +1,29 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.config import settings
-from app.limiter import limiter
-from app.middleware import origin_firewall
-from app.routers import auth, productos
+from app.api.routers import auth, distribuidores, productos
+from app.core.config import settings
+from app.core.exceptions import AppError
+from app.core.limiter import limiter
+from app.core.middleware import origin_firewall
 
-app = FastAPI(title="Serving for you API", version="1.0.0")
+app = FastAPI(title="Serving for you API", version="1.1.0")
 
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+
+# Errores de negocio (los lanzan los services) -> respuesta HTTP
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
 
 # Firewall de origen (se activa cuando llenes ALLOWED_ORIGINS)
 app.middleware("http")(origin_firewall)
@@ -29,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(distribuidores.router)
 app.include_router(productos.router)
 
 
