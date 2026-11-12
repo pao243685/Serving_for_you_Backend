@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
@@ -42,6 +43,10 @@ def catalogo_del_distribuidor(
     request: Request,
     id_distribuidor: uuid.UUID,
     categoria: CategoriaPostre | None = Query(default=None, description="Filtra por categoría"),
+    unidad_medida: Literal["KG", "L", "PZ"] | None = Query(
+        default=None, description="Filtra por unidad: PZ (pieza), KG (kilo), L (litro)"
+    ),
+    q: str | None = Query(default=None, max_length=100, description="Busca por nombre, SKU o descripción"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
     db: Session = Depends(get_db),
@@ -50,7 +55,8 @@ def catalogo_del_distribuidor(
     """Catálogo público: solo productos activos y solo los campos que ve un cliente."""
     dist = distribuidores_service.obtener(db, id_distribuidor)
     items, total = productos_service.listar(
-        db, id_distribuidor, categoria, activo=True, page=page, page_size=page_size
+        db, id_distribuidor, categoria, activo=True, page=page, page_size=page_size,
+        unidad_medida=unidad_medida, q=q,
     )
     return ProductosPublicosPage(
         distribuidor=dist,

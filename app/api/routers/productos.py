@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
@@ -61,6 +62,10 @@ def borrar_producto(
 def mis_productos(
     request: Request,
     categoria: CategoriaPostre | None = Query(default=None, description="Filtra por categoría"),
+    unidad_medida: Literal["KG", "L", "PZ"] | None = Query(
+        default=None, description="Filtra por unidad: PZ (pieza), KG (kilo), L (litro)"
+    ),
+    q: str | None = Query(default=None, max_length=100, description="Busca por nombre, SKU o descripción"),
     activo: bool | None = Query(
         default=None, description="true = solo activos, false = solo desactivados, vacío = todos"
     ),
@@ -70,7 +75,8 @@ def mis_productos(
     id_distribuidor: uuid.UUID = Depends(require_distribuidor),
 ):
     items, total = productos_service.listar(
-        db, id_distribuidor, categoria, activo=activo, page=page, page_size=page_size
+        db, id_distribuidor, categoria, activo=activo, page=page, page_size=page_size,
+        unidad_medida=unidad_medida, q=q,
     )
     return MisProductosPage(
         productos=items,

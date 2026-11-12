@@ -2,7 +2,7 @@ import secrets
 import string
 import uuid
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -83,11 +83,24 @@ def listar(
     activo: bool | None,
     page: int,
     page_size: int,
+    unidad_medida: str | None = None,
+    q: str | None = None,
 ) -> tuple[list[Producto], int]:
     """activo=True para el catálogo de clientes; None o bool para la vista del dueño."""
     filtros = [Producto.id_distribuidor == id_distribuidor]
     if categoria:
         filtros.append(Producto.categoria == categoria)
+    if unidad_medida:
+        filtros.append(Producto.unidad_medida == unidad_medida)
+    if q and q.strip():
+        t = q.strip()
+        filtros.append(
+            or_(
+                Producto.nombre.icontains(t, autoescape=True),
+                Producto.codigo_generado.icontains(t, autoescape=True),
+                Producto.descripcion_producto.icontains(t, autoescape=True),
+            )
+        )
     if activo is not None:
         filtros.append(Producto.activo.is_(activo))
 
