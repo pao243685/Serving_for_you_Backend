@@ -28,7 +28,7 @@ async def app_error_handler(request: Request, exc: AppError):
 # Firewall de origen (se activa cuando llenes ALLOWED_ORIGINS)
 app.middleware("http")(origin_firewall)
 
-# CORS va al final para que sea la capa más externa
+# CORS va al final 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
