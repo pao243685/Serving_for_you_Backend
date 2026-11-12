@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     rate_limit_default: str = "100/minute"
     rate_limit_auth: str = "5/minute"
     redis_url: str = ""
+    # Lotes: umbrales para las pestañas "Caducidad crítica" y "Por agotarse"
+    lote_critico_horas: int = 48
+    lote_bajo_stock: int = 10
 
     @property
     def origins_list(self) -> list[str]:

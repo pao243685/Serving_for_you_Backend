@@ -60,7 +60,7 @@ def _duplicado(
     return db.scalar(q.limit(1)) is not None
 
 
-def _obtener_propio(db: Session, id_distribuidor: uuid.UUID, id_producto: uuid.UUID) -> Producto:
+def obtener_propio(db: Session, id_distribuidor: uuid.UUID, id_producto: uuid.UUID) -> Producto:
     """Devuelve el producto solo si es del distribuidor; si no, 404 (no revela que existe)."""
     producto = db.scalar(
         select(Producto).where(
@@ -153,7 +153,7 @@ def crear(db: Session, id_distribuidor: uuid.UUID, data: ProductoCreate) -> Prod
 def editar(
     db: Session, id_distribuidor: uuid.UUID, id_producto: uuid.UUID, data: ProductoUpdate
 ) -> Producto:
-    producto = _obtener_propio(db, id_distribuidor, id_producto)
+    producto = obtener_propio(db, id_distribuidor, id_producto)
 
     cambios = data.model_dump(exclude_unset=True)
     if "imagen_url" in cambios:
@@ -181,7 +181,7 @@ def editar(
 
 def borrar(db: Session, id_distribuidor: uuid.UUID, id_producto: uuid.UUID) -> None:
     """Borrado real, solo si el producto nunca se ha pedido. Si ya tiene pedidos, desactívalo."""
-    producto = _obtener_propio(db, id_distribuidor, id_producto)
+    producto = obtener_propio(db, id_distribuidor, id_producto)
 
     tiene_pedidos = db.scalar(
         select(DetallePedido.pedido_id).where(DetallePedido.producto_id == id_producto).limit(1)
