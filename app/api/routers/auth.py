@@ -36,5 +36,5 @@ def registro_cliente(request: Request, data: RegistroCliente, db: Session = Depe
 @router.post("/login", response_model=TokenOut)
 @limiter.limit(settings.rate_limit_auth)
 def login(request: Request, data: LoginIn, db: Session = Depends(get_db)):
-    user_id = auth_service.autenticar(db, data.correo, data.contrasena, data.rol)
-    return TokenOut(access_token=create_access_token(user_id, data.rol), rol=data.rol)
+    user_id, rol = auth_service.autenticar(db, data.correo, data.contrasena, data.rol)
+    return TokenOut(access_token=create_access_token(user_id, rol), rol=rol)

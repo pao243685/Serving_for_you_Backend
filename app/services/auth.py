@@ -53,14 +53,24 @@ def registrar_cliente(db: Session, data: RegistroCliente) -> Cliente:
     return cliente
 
 
-def autenticar(db: Session, correo: str, contrasena: str, rol: str) -> str:
-    """Valida credenciales y devuelve el id del usuario (como texto)."""
-    model = Distribuidor if rol == "distribuidor" else Cliente
-    user = db.scalar(select(model).where(model.correo == correo.lower()))
+def autenticar(
+    db: Session, correo: str, contrasena: str, rol: str | None = None
+) -> tuple[str, str]:
+    """Valida credenciales y devuelve (id del usuario como texto, rol).
 
-    # Verificamos siempre para que el tiempo de respuesta no revele si el correo existe
-    ok = verify_password(contrasena, user.contrasena if user else DUMMY_HASH)
-    if not user or not ok:
+    Sin `rol` se prueba distribuidor y luego cliente. Siempre se verifica contra ambos
+    hashes (o el falso) para que el tiempo no revele si el correo existe ni en qué tabla.
+    """
+    correo = correo.lower()
+    encontrado: tuple[str, str] | None = None
+    for r in ([rol] if rol else ["distribuidor", "cliente"]):
+        model = Distribuidor if r == "distribuidor" else Cliente
+        user = db.scalar(select(model).where(model.correo == correo))
+        ok = verify_password(contrasena, user.contrasena if user else DUMMY_HASH)
+        if user and ok and encontrado is None:
+            uid = user.id_distribuidor if r == "distribuidor" else user.id_cliente
+            encontrado = (str(uid), r)
+
+    if encontrado is None:
         raise NoAutenticado("Correo o contraseña incorrectos")
-
-    return str(user.id_distribuidor if rol == "distribuidor" else user.id_cliente)
+    return encontrado

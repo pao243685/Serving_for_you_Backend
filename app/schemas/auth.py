@@ -60,7 +60,8 @@ class RegistroDistribuidor(BaseModel):
 class LoginIn(BaseModel):
     correo: EmailStr
     contrasena: str
-    rol: Literal["distribuidor", "cliente"]
+    # Opcional: si no viene, se busca el correo en distribuidores y luego en clientes
+    rol: Literal["distribuidor", "cliente"] | None = None
 
 
 class TokenOut(BaseModel):
