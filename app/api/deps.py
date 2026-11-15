@@ -30,3 +30,13 @@ def require_distribuidor(user: dict = Depends(get_current_user)) -> uuid.UUID:
         return uuid.UUID(user["sub"])
     except (KeyError, ValueError):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido")
+
+
+def require_cliente(user: dict = Depends(get_current_user)) -> uuid.UUID:
+    """Exige rol cliente y devuelve su id (sacado del token)."""
+    if user.get("rol") != "cliente":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo los clientes pueden hacer esto")
+    try:
+        return uuid.UUID(user["sub"])
+    except (KeyError, ValueError):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido")
