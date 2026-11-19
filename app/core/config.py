@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     # Lotes: umbrales para las pestañas "Caducidad crítica" y "Por agotarse"
     lote_critico_horas: int = 48
     lote_bajo_stock: int = 10
+    # Para "liquidaciones de hoy" en cobranza: horas de diferencia con UTC (México: -6)
+    zona_horaria_horas: int = -6
 
     @property
     def origins_list(self) -> list[str]:
