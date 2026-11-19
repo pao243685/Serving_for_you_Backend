@@ -6,7 +6,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.security import decode_token
 
-bearer = HTTPBearer(auto_error=False)
+bearer = HTTPBearer(
+    auto_error=False,
+    bearerFormat="JWT",
+    description=(
+        "Pega el access_token que devuelve POST /auth/login "
+        "(solo el token, sin la palabra Bearer)."
+    ),
+)
 
 
 def get_current_user(
