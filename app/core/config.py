@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     lote_bajo_stock: int = 10
     # Para "liquidaciones de hoy" en cobranza: horas de diferencia con UTC (México: -6)
     zona_horaria_horas: int = -6
+    # /docs, /redoc y /openapi.json. Pon DOCS_ENABLED=false para ocultarlos en producción
+    docs_enabled: bool = True
 
     @property
     def origins_list(self) -> list[str]:

@@ -5,8 +5,9 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 
-# Rutas que no exigen origen (el healthcheck del servidor, por ejemplo)
-EXEMPT_PATHS = {"/health"}
+# Rutas que no exigen origen: el healthcheck del servidor y la documentación
+# (la documentación solo existe si DOCS_ENABLED=true)
+EXEMPT_PATHS = {"/health", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
 
 
 async def origin_firewall(request: Request, call_next):
