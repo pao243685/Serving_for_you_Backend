@@ -5,13 +5,25 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from app.api.docs import DESCRIPCION, SWAGGER_UI, TAGS, instalar_openapi
 from app.api.routers import auth, distribuidores, lotes, pagos, pedidos, productos
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.limiter import limiter
 from app.core.middleware import origin_firewall
 
-app = FastAPI(title="Serving for you API", version="1.1.0")
+app = FastAPI(
+    title="Serving for you API",
+    version="1.1.0",
+    summary="API del portal mayorista de repostería y panadería",
+    description=DESCRIPCION,
+    openapi_tags=TAGS,
+    docs_url="/docs" if settings.docs_enabled else None,
+    redoc_url="/redoc" if settings.docs_enabled else None,
+    openapi_url="/openapi.json" if settings.docs_enabled else None,
+    swagger_ui_parameters=SWAGGER_UI,
+)
+instalar_openapi(app)
 
 # Rate limiting
 app.state.limiter = limiter
