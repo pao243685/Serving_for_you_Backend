@@ -5,6 +5,15 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 TabPedidos = Literal["activos", "entregados", "cancelados"]
+EstadoCobro = Literal[
+    "ANTICIPO_PENDIENTE",  # el cliente aún no manda comprobante (o se lo rechazaron)
+    "ANTICIPO_POR_CONFIRMAR",  # comprobante enviado, espera validación del proveedor
+    "PENDIENTE_LIQUIDAR",  # anticipo confirmado, falta el saldo contra entrega
+    "PAGADO",  # todo cobrado
+    "REEMBOLSO_PENDIENTE",  # cancelado con anticipo confirmado, falta devolverlo
+    "REEMBOLSADO",
+    "SIN_COBROS",  # cancelado sin que se haya cobrado nada
+]
 
 
 # ---------------------------------------------------------------- Entradas
@@ -92,6 +101,7 @@ class PagoOut(BaseModel):
     fecha_comprobante: datetime | None
     fecha_validacion: datetime | None
     fecha_reembolso: datetime | None
+    comprobante_reembolso_url: str | None
 
 
 class PedidoOut(BaseModel):
@@ -118,6 +128,8 @@ class PedidoOut(BaseModel):
     saldo_restante: float  # lo que falta por liquidar contra entrega
     cancelable_por_cliente: bool
     reembolso_pendiente: bool  # cancelado con anticipo ya confirmado, falta devolverlo
+    monto_cobrado: float  # suma de los pagos ya CONFIRMADOS
+    estado_cobro: EstadoCobro
 
 
 class ConteosPedidos(BaseModel):

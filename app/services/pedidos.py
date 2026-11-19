@@ -68,6 +68,21 @@ def _referencia(id_pedido: uuid.UUID, tipo: str) -> str:
     return f"SFY-{id_pedido.hex[:8].upper()}-{'A' if tipo == 'ANTICIPO' else 'F'}"
 
 
+def _estado_cobro(pedido: Pedido, anticipo: Pago | None, final: Pago | None) -> str:
+    confirmado = anticipo is not None and anticipo.estado == "CONFIRMADO"
+    if pedido.estatus == "CANCELADO":
+        if not confirmado:
+            return "SIN_COBROS"
+        return "REEMBOLSADO" if anticipo.fecha_reembolso is not None else "REEMBOLSO_PENDIENTE"
+    if anticipo is None or anticipo.estado in ("PENDIENTE", "RECHAZADO"):
+        return "ANTICIPO_PENDIENTE"
+    if anticipo.estado == "POR_VALIDAR":
+        return "ANTICIPO_POR_CONFIRMAR"
+    if final is None or final.estado == "CONFIRMADO":
+        return "PAGADO"
+    return "PENDIENTE_LIQUIDAR"
+
+
 def _armar(db: Session, pedidos: list[Pedido]) -> list[PedidoOut]:
     """Convierte pedidos en respuestas completas con 4 consultas, sin importar cuántos sean."""
     if not pedidos:
@@ -170,6 +185,7 @@ def _armar(db: Session, pedidos: list[Pedido]) -> list[PedidoOut]:
                         fecha_comprobante=_utc(x.fecha_comprobante),
                         fecha_validacion=_utc(x.fecha_validacion),
                         fecha_reembolso=_utc(x.fecha_reembolso),
+                        comprobante_reembolso_url=x.comprobante_reembolso_url,
                     )
                     for x in ps
                 ],
@@ -181,6 +197,8 @@ def _armar(db: Session, pedidos: list[Pedido]) -> list[PedidoOut]:
                     and anticipo_ok
                     and anticipo.fecha_reembolso is None
                 ),
+                monto_cobrado=_dinero(sum(x.monto for x in ps if x.estado == "CONFIRMADO")),
+                estado_cobro=_estado_cobro(p, anticipo, final),
             )
         )
     return salida
