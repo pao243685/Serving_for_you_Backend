@@ -37,6 +37,8 @@ TABS: dict[str, tuple[str, ...]] = {
 }
 # El cliente puede cancelar hasta que el pedido sale a ruta
 CANCELABLES_CLIENTE = ("PENDIENTE", "POR_VALIDAR", "EN_PROCESO")
+# El proveedor también puede cancelar hasta que el pedido sale a ruta
+CANCELABLES_PROVEEDOR = ("PENDIENTE", "POR_VALIDAR", "EN_PROCESO")
 PASO = {"PENDIENTE": 1, "POR_VALIDAR": 1, "EN_PROCESO": 2, "EN_ENVIO": 3, "ENTREGADO": 4}
 
 
@@ -413,6 +415,14 @@ def cancelar_cliente(
         db.rollback()
         raise Conflicto(razon)
 
+    return _cancelar(db, pedido, "CLIENTE", motivo)
+
+
+def _cancelar(db: Session, pedido: Pedido, por: str, motivo: str | None) -> PedidoOut:
+    """Cancela un pedido ya bloqueado y validado: devuelve el stock a sus lotes, anula lo no
+    cobrado y lo marca cancelado. `por` es CLIENTE o PROVEEDOR."""
+    id_pedido = pedido.id_pedido
+
     # Devuelve a cada lote lo que se le había quitado (orden fijo contra bloqueos cruzados)
     asignaciones = db.scalars(
         select(DetallePedidoLote)
@@ -433,7 +443,7 @@ def cancelar_cliente(
             pago.estado = "ANULADO"
 
     pedido.estatus = "CANCELADO"
-    pedido.cancelado_por = "CLIENTE"
+    pedido.cancelado_por = por
     pedido.motivo_cancelacion = motivo
     pedido.fecha_cancelacion = _ahora_utc()
     try:
