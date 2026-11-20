@@ -6,7 +6,15 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.docs import DESCRIPCION, SWAGGER_UI, TAGS, instalar_openapi
-from app.api.routers import auth, distribuidores, lotes, pagos, pedidos, productos
+from app.api.routers import (
+    auth,
+    distribuidores,
+    lotes,
+    pagos,
+    pedidos,
+    pedidos_distribuidor,
+    productos,
+)
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.limiter import limiter
@@ -55,6 +63,7 @@ app.include_router(productos.router)
 app.include_router(lotes.router)
 app.include_router(pedidos.router)
 app.include_router(pagos.router)
+app.include_router(pedidos_distribuidor.router)
 
 
 @app.get("/health", tags=["health"])
