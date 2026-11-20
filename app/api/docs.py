@@ -24,6 +24,7 @@ from app.schemas.auth import LoginIn, RegistroCliente, RegistroDistribuidor, Tok
 from app.schemas.lote import LoteCreate
 from app.schemas.pago import ComprobanteIn, LiquidacionIn, RechazarIn, ValidarAnticipoIn
 from app.schemas.pedido import CancelarIn, PedidoCreate, PedidoOut
+from app.schemas.pedido_distribuidor import CancelarProveedorIn, PedidoManualIn
 from app.schemas.producto import ProductoCreate
 
 log = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 |---|---|---|---|
 | `PENDIENTE` | 1 | Creado, falta el comprobante del anticipo (o fue rechazado). | El cliente envía el comprobante, o cancela. |
 | `POR_VALIDAR` | 1 | Comprobante enviado. | El distribuidor lo valida (pasa a `EN_PROCESO`) o lo rechaza (vuelve a `PENDIENTE`). |
-| `EN_PROCESO` | 2 | Anticipo confirmado, en preparación. | El distribuidor lo manda a ruta. El cliente aún puede cancelar. |
+| `EN_PROCESO` | 2 | Anticipo confirmado, en preparación. | El distribuidor completa el armado y pasa a `EN_ENVIO`. El cliente o el distribuidor aún pueden cancelar. |
 | `EN_ENVIO` | 3 | En ruta. **Ya no se puede cancelar.** | El distribuidor confirma la entrega. |
 | `ENTREGADO` | 4 | Entregado. | Fin. El saldo se liquida contra entrega. |
 | `CANCELADO` | `null` | Cancelado por el cliente o el proveedor. | Si ya había anticipo confirmado, queda `reembolso_pendiente` hasta registrar la devolución. |
@@ -79,6 +80,8 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 - El **anticipo** es el `porcentaje_anticipo` del distribuidor (50 % por defecto) y siempre es por transferencia.
   El **saldo** se cobra contra entrega, en efectivo o por transferencia.
 - `estado_cobro` resume el dinero de un pedido; úsalo para las etiquetas de la pantalla de cobranza.
+- `acciones` indica qué botones habilitar según el estado del pedido (por ejemplo `completar_armado` o
+  `cancelar_cliente`). La API valida el rol, así que cada acción solo la ejecuta quien corresponde.
 
 ## Qué endpoints usa cada pantalla
 
@@ -90,7 +93,7 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 | Catálogo de repostería (distribuidor) | `GET /mis-productos`, `POST /productos`, `PATCH /productos/{id}`, `DELETE /productos/{id}`, `GET /categorias` |
 | Lotes y caducidades (y su modal) | `GET /lotes`, `POST /lotes`, `PATCH /lotes/{id}`, `DELETE /lotes/{id}`, `GET /productos/{id}/lotes` |
 | Cobranza y anticipos | `GET /cobranza?tab=&q=`, `POST /pedidos/{id}/anticipo/validar`, `POST /pedidos/{id}/anticipo/rechazar`, `POST /pedidos/{id}/liquidacion`, `POST /pedidos/{id}/reembolso` |
-| Pedidos en curso (distribuidor) | **Pendiente.** Hoy solo existe `GET /pedidos/{id}`; faltan el listado, "Completar armado", "Confirmar entrega", cancelar por el proveedor y la orden manual. |
+| Pedidos en curso (distribuidor) | `GET /pedidos?tab=&q=`, `POST /pedidos/{id}/completar-armado`, `POST /pedidos/{id}/confirmar-entrega`, `POST /pedidos/{id}/cancelar-proveedor`, `POST /pedidos/manual` (Generar orden manual) |
 
 ## Lo que el diseño pide y la base de datos no guarda
 
@@ -99,6 +102,9 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 - No hay pago con tarjeta: el anticipo es transferencia y el saldo, efectivo o transferencia.
 - Un negocio es un cliente: no hay varias sucursales. La "sucursal" del diseño es el nombre del cliente.
 - El cierre de pedidos a las 18:00 no está implementado.
+- "Verificado" por línea, "Sin merma" y el historial de cancelaciones no existen: cada pedido guarda un
+  solo registro de cancelación (`cancelado_por`, `motivo_cancelacion`, `fecha_cancelacion`).
+- La orden manual se captura con el correo de un cliente que ya esté registrado.
 """
 
 DESCRIPCION = _GUIA.replace("__TTL__", str(settings.jwt_expire_minutes)).replace(
@@ -260,6 +266,52 @@ ERRORES: dict[tuple[str, str], dict[int, tuple[str, list[str]]]] = {
     },
 }
 
+ERRORES.update(
+    {
+        ("POST", "/pedidos/manual"): {
+            400: _e(
+                "Productos inválidos o monto demasiado pequeño",
+                "Uno o más productos no existen, están desactivados o no son de este distribuidor",
+                "El monto del pedido es demasiado pequeño",
+            ),
+            404: _e("No hay un cliente con ese correo", "No hay un cliente registrado con ese correo"),
+            409: _e(
+                "No alcanza el stock (no se descontó nada)",
+                "Stock insuficiente de «Croissant Mantequilla»: disponible 30, pedido 31",
+            ),
+        },
+        ("POST", "/pedidos/{id_pedido}/completar-armado"): {
+            404: _e(_NO_EXISTE, "Pedido no encontrado"),
+            409: _e(
+                "El pedido no está en preparación",
+                "El pedido todavía no tiene el anticipo confirmado",
+                "El pedido ya va en ruta",
+                "El pedido ya fue entregado",
+                "El pedido está cancelado",
+            ),
+        },
+        ("POST", "/pedidos/{id_pedido}/confirmar-entrega"): {
+            404: _e(_NO_EXISTE, "Pedido no encontrado"),
+            409: _e(
+                "El pedido no va en ruta",
+                "El pedido aún no sale a ruta: completa el armado primero",
+                "El pedido todavía no tiene el anticipo confirmado",
+                "El pedido ya fue entregado",
+                "El pedido está cancelado",
+            ),
+        },
+        ("POST", "/pedidos/{id_pedido}/cancelar-proveedor"): {
+            404: _e(_NO_EXISTE, "Pedido no encontrado"),
+            409: _e(
+                "El pedido ya no se puede cancelar",
+                "El pedido ya va en ruta y no admite cancelación",
+                "El pedido ya fue entregado",
+                "El pedido ya está cancelado",
+            ),
+        },
+    }
+)
+
 # ---------------------------------------------------------------- tipos y descripciones de campos
 
 CAMPOS_ENUM: dict[str, dict[str, list[str]]] = {
@@ -284,6 +336,7 @@ DESCRIPCIONES: dict[str, dict[str, str]] = {
         "monto_cobrado": "Suma de los pagos ya confirmados.",
         "estado_cobro": "Resumen del dinero del pedido, para las etiquetas de cobranza.",
         "cancelable_por_cliente": "true si el cliente todavía puede cancelar (aún no va en ruta).",
+        "acciones": "Qué botones habilitar según el estado. La API valida el rol de quien ejecuta cada acción.",
         "reembolso_pendiente": "true si se canceló con anticipo ya confirmado y falta devolverlo.",
     },
     "PagoOut": {
@@ -359,6 +412,12 @@ def _ejemplos() -> dict[type, dict]:
             ],
         },
         CancelarIn: {"motivo": "Me equivoqué de sucursal"},
+        CancelarProveedorIn: {"motivo": "Se terminó la masa del lote de hoy"},
+        PedidoManualIn: {
+            "correo_cliente": "gerencia@cacaoygrano.com",
+            "direccion_entrega": "Av. Álvaro Obregón 160, Col. Roma Norte, CDMX",
+            "items": [{"id_producto": "5d0a8b7e-1c2f-4b3a-9e4d-6f7a8b9c0d1e", "cantidad": 12}],
+        },
         ComprobanteIn: {"comprobante_url": comprobante},
         ValidarAnticipoIn: {"fecha_entrega_estimada": fecha},
         RechazarIn: {"motivo": "El monto transferido no coincide con el anticipo"},
