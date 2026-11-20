@@ -18,6 +18,7 @@ from app.models import (
     Stock,
 )
 from app.schemas.pedido import (
+    AccionesPedido,
     ClienteDePedido,
     ConteosPedidos,
     DistribuidorDePedido,
@@ -68,6 +69,31 @@ def folio_pedido(id_pedido: uuid.UUID) -> str:
 def _referencia(id_pedido: uuid.UUID, tipo: str) -> str:
     # Concepto que el cliente pone en la transferencia (la columna admite 20 caracteres)
     return f"SFY-{id_pedido.hex[:8].upper()}-{'A' if tipo == 'ANTICIPO' else 'F'}"
+
+
+def _acciones(pedido: Pedido, anticipo: Pago | None, final: Pago | None) -> AccionesPedido:
+    """Qué se puede hacer con el pedido en su estado actual (lo ejecuta el rol que toca)."""
+    est = pedido.estatus
+    ant = anticipo.estado if anticipo is not None else None
+    anticipo_ok = ant == "CONFIRMADO"
+    return AccionesPedido(
+        subir_comprobante=est == "PENDIENTE" and ant in ("PENDIENTE", "RECHAZADO"),
+        cancelar_cliente=est in CANCELABLES_CLIENTE,
+        validar_anticipo=est == "POR_VALIDAR" and ant == "POR_VALIDAR",
+        rechazar_anticipo=est == "POR_VALIDAR" and ant == "POR_VALIDAR",
+        completar_armado=est == "EN_PROCESO",
+        confirmar_entrega=est == "EN_ENVIO",
+        cancelar_proveedor=est in CANCELABLES_PROVEEDOR,
+        registrar_liquidacion=(
+            est in ("EN_ENVIO", "ENTREGADO")
+            and anticipo_ok
+            and final is not None
+            and final.estado not in ("CONFIRMADO", "ANULADO")
+        ),
+        registrar_reembolso=(
+            est == "CANCELADO" and anticipo_ok and anticipo.fecha_reembolso is None
+        ),
+    )
 
 
 def _estado_cobro(pedido: Pedido, anticipo: Pago | None, final: Pago | None) -> str:
@@ -201,6 +227,7 @@ def _armar(db: Session, pedidos: list[Pedido]) -> list[PedidoOut]:
                 ),
                 monto_cobrado=_dinero(sum(x.monto for x in ps if x.estado == "CONFIRMADO")),
                 estado_cobro=_estado_cobro(p, anticipo, final),
+                acciones=_acciones(p, anticipo, final),
             )
         )
     return salida

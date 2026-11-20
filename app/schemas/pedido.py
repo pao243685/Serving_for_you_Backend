@@ -104,6 +104,21 @@ class PagoOut(BaseModel):
     comprobante_reembolso_url: str | None
 
 
+class AccionesPedido(BaseModel):
+    """Qué se puede hacer con el pedido en su estado actual. Úsalo para habilitar o esconder
+    botones; la API valida el rol, así que cada acción solo la ejecuta quien corresponde."""
+
+    subir_comprobante: bool  # cliente: enviar el comprobante del anticipo
+    cancelar_cliente: bool  # cliente
+    validar_anticipo: bool  # distribuidor
+    rechazar_anticipo: bool  # distribuidor
+    completar_armado: bool  # distribuidor: el pedido sale a ruta
+    confirmar_entrega: bool  # distribuidor
+    cancelar_proveedor: bool  # distribuidor
+    registrar_liquidacion: bool  # distribuidor: cobrar el saldo
+    registrar_reembolso: bool  # distribuidor: devolver un anticipo ya confirmado
+
+
 class PedidoOut(BaseModel):
     id_pedido: uuid.UUID
     folio: str  # corto y derivado del id (la BD no guarda uno): PED-1A2B3C4D
@@ -130,6 +145,7 @@ class PedidoOut(BaseModel):
     reembolso_pendiente: bool  # cancelado con anticipo ya confirmado, falta devolverlo
     monto_cobrado: float  # suma de los pagos ya CONFIRMADOS
     estado_cobro: EstadoCobro
+    acciones: AccionesPedido
 
 
 class ConteosPedidos(BaseModel):

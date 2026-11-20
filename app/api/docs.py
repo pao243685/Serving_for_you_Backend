@@ -460,6 +460,17 @@ def _ejemplos() -> dict[type, dict]:
             "reembolso_pendiente": False,
             "monto_cobrado": 1182.5,
             "estado_cobro": "PENDIENTE_LIQUIDAR",
+            "acciones": {
+                "subir_comprobante": False,
+                "cancelar_cliente": True,
+                "validar_anticipo": False,
+                "rechazar_anticipo": False,
+                "completar_armado": True,
+                "confirmar_entrega": False,
+                "cancelar_proveedor": True,
+                "registrar_liquidacion": False,
+                "registrar_reembolso": False,
+            },
         },
     }
 
