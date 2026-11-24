@@ -71,7 +71,7 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 |---|---|---|---|
 | `PENDIENTE` | 1 | Creado, falta el comprobante del anticipo (o fue rechazado). | El cliente envía el comprobante, o cancela. |
 | `POR_VALIDAR` | 1 | Comprobante enviado. | El distribuidor lo valida (pasa a `EN_PROCESO`) o lo rechaza (vuelve a `PENDIENTE`). |
-| `EN_PROCESO` | 2 | Anticipo confirmado, en preparación. | El distribuidor completa el armado y pasa a `EN_ENVIO`. El cliente o el distribuidor aún pueden cancelar. |
+| `EN_PROCESO` | 2 | Anticipo confirmado, en preparación. | El distribuidor completa el armado y pasa a `EN_ENVIO`, o confirma la entrega directo (`ENTREGADO`) si la cafetería pasa a recogerlo (entrega en mostrador). El cliente o el distribuidor aún pueden cancelar. |
 | `EN_ENVIO` | 3 | En ruta. **Ya no se puede cancelar.** | El distribuidor confirma la entrega. |
 | `ENTREGADO` | 4 | Entregado. | Fin. El saldo se liquida contra entrega. |
 | `CANCELADO` | `null` | Cancelado por el cliente o el proveedor. | Si ya había anticipo confirmado, queda `reembolso_pendiente` hasta registrar la devolución. |
@@ -293,8 +293,7 @@ ERRORES.update(
         ("POST", "/pedidos/{id_pedido}/confirmar-entrega"): {
             404: _e(_NO_EXISTE, "Pedido no encontrado"),
             409: _e(
-                "El pedido no va en ruta",
-                "El pedido aún no sale a ruta: completa el armado primero",
+                "El pedido no está listo para entregarse",
                 "El pedido todavía no tiene el anticipo confirmado",
                 "El pedido ya fue entregado",
                 "El pedido está cancelado",
