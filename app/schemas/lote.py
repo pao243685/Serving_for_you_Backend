@@ -31,6 +31,7 @@ class ProductoDeLote(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id_producto: uuid.UUID
     nombre: str
+    descripcion_producto: str | None
     tamano: str | None
     unidad_medida: str
     codigo_generado: str

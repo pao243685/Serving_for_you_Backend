@@ -80,6 +80,7 @@ class DistribuidorDePedido(BaseModel):
 class LineaPedido(BaseModel):
     id_producto: uuid.UUID
     nombre: str
+    descripcion_producto: str | None
     tamano: str | None
     unidad_medida: str
     imagen_url: str

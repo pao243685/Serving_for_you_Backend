@@ -130,6 +130,7 @@ def _armar(db: Session, pedidos: list[Pedido]) -> list[PedidoOut]:
             LineaPedido(
                 id_producto=prod.id_producto,
                 nombre=prod.nombre,
+                descripcion_producto=prod.descripcion_producto,
                 tamano=prod.tamano,
                 unidad_medida=prod.unidad_medida,
                 imagen_url=prod.imagen_url,
