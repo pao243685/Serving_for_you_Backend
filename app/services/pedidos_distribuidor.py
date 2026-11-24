@@ -160,19 +160,19 @@ def completar_armado(
 def confirmar_entrega(
     db: Session, id_distribuidor: uuid.UUID, id_pedido: uuid.UUID
 ) -> PedidoOut:
-    """EN_ENVIO -> ENTREGADO. No exige que el saldo esté cobrado: la liquidación se
-    registra aparte y el pedido queda con estado_cobro PENDIENTE_LIQUIDAR si falta."""
+    """EN_ENVIO -> ENTREGADO, o EN_PROCESO -> ENTREGADO ('entrega en mostrador': la
+    cafetería pasa a recoger y no hay ruta). No exige que el saldo esté cobrado: la
+    liquidación se registra aparte y el pedido queda con estado_cobro PENDIENTE_LIQUIDAR."""
     pedido = _pedido_bloqueado(db, id_distribuidor, id_pedido)
-    if pedido.estatus != "EN_ENVIO":
+    if pedido.estatus not in ("EN_PROCESO", "EN_ENVIO"):
         _conflicto(
             db,
             {
                 "PENDIENTE": _SIN_ANTICIPO,
                 "POR_VALIDAR": _SIN_ANTICIPO,
-                "EN_PROCESO": "El pedido aún no sale a ruta: completa el armado primero",
                 "ENTREGADO": "El pedido ya fue entregado",
                 "CANCELADO": "El pedido está cancelado",
-            }.get(pedido.estatus, "El pedido no va en ruta"),
+            }.get(pedido.estatus, "El pedido no está listo para entregarse"),
         )
     pedido.estatus = "ENTREGADO"
     pedido.fecha_entrega_real = datetime.now(timezone.utc)

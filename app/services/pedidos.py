@@ -82,7 +82,7 @@ def _acciones(pedido: Pedido, anticipo: Pago | None, final: Pago | None) -> Acci
         validar_anticipo=est == "POR_VALIDAR" and ant == "POR_VALIDAR",
         rechazar_anticipo=est == "POR_VALIDAR" and ant == "POR_VALIDAR",
         completar_armado=est == "EN_PROCESO",
-        confirmar_entrega=est == "EN_ENVIO",
+        confirmar_entrega=est in ("EN_PROCESO", "EN_ENVIO"),
         cancelar_proveedor=est in CANCELABLES_PROVEEDOR,
         registrar_liquidacion=(
             est in ("EN_ENVIO", "ENTREGADO")

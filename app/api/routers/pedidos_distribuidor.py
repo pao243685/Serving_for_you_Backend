@@ -73,7 +73,7 @@ def confirmar_entrega(
     db: Session = Depends(get_db),
     id_distribuidor: uuid.UUID = Depends(require_distribuidor),
 ):
-    """'Confirmar entrega en sucursal': EN_ENVIO pasa a ENTREGADO y se guarda la fecha real."""
+    """'Confirmar entrega': EN_ENVIO o EN_PROCESO (entrega en mostrador) pasa a ENTREGADO y se guarda la fecha real."""
     return pedidos_service.confirmar_entrega(db, id_distribuidor, id_pedido)
 
 
