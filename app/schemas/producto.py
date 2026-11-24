@@ -30,9 +30,19 @@ class ProductoDueno(ProductoPublico):
     activo: bool
 
 
+class ProductoPublicoStock(ProductoPublico):
+    """Producto del catálogo con sus unidades disponibles."""
+
+    stock_disponible: int  # unidades en lotes sin vencer
+
+
+class ProductoDuenoStock(ProductoDueno):
+    stock_disponible: int  # unidades en lotes sin vencer
+
+
 class ProductosPublicosPage(BaseModel):
     distribuidor: DistribuidorOut
-    productos: list[ProductoPublico]
+    productos: list[ProductoPublicoStock]
     page: int
     page_size: int
     total: int
@@ -40,7 +50,7 @@ class ProductosPublicosPage(BaseModel):
 
 
 class MisProductosPage(BaseModel):
-    productos: list[ProductoDueno]
+    productos: list[ProductoDuenoStock]
     page: int
     page_size: int
     total: int

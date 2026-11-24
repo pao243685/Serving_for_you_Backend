@@ -1,6 +1,7 @@
 import secrets
 import string
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -76,6 +77,28 @@ def obtener_propio(db: Session, id_distribuidor: uuid.UUID, id_producto: uuid.UU
 # ---------------------------------------------------------------- casos de uso
 
 
+def _poner_stock_disponible(db: Session, productos: list[Producto]) -> None:
+    """Agrega `stock_disponible` a cada producto: unidades en lotes sin vencer, la misma regla
+    con la que se reserva el stock al crear un pedido."""
+    if not productos:
+        return
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    por_producto = dict(
+        db.execute(
+            select(ProductoStock.id_producto, func.sum(Stock.stock))
+            .join(Stock, Stock.id_stock == ProductoStock.stock_id)
+            .where(
+                ProductoStock.id_producto.in_([p.id_producto for p in productos]),
+                Stock.stock > 0,
+                Stock.caducidad > ahora,
+            )
+            .group_by(ProductoStock.id_producto)
+        ).all()
+    )
+    for p in productos:
+        p.stock_disponible = int(por_producto.get(p.id_producto, 0))
+
+
 def listar(
     db: Session,
     id_distribuidor: uuid.UUID,
@@ -112,7 +135,9 @@ def listar(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    return list(items), total
+    items = list(items)
+    _poner_stock_disponible(db, items)
+    return items, total
 
 
 def crear(db: Session, id_distribuidor: uuid.UUID, data: ProductoCreate) -> Producto:
