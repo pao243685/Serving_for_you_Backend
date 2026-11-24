@@ -13,6 +13,7 @@ from app.api.routers import (
     pagos,
     pedidos,
     pedidos_distribuidor,
+    perfil,
     productos,
 )
 from app.core.config import settings
@@ -64,6 +65,7 @@ app.include_router(lotes.router)
 app.include_router(pedidos.router)
 app.include_router(pagos.router)
 app.include_router(pedidos_distribuidor.router)
+app.include_router(perfil.router)
 
 
 @app.get("/health", tags=["health"])
