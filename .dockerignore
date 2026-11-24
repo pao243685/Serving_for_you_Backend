@@ -1,7 +1,14 @@
+.git
+.github
 .env
+.env.*
 .venv/
-.git/
 __pycache__/
 *.pyc
 *.sh
+.pytest_cache
+.ruff_cache
 db/
+deploy/
+infra/
+tests/

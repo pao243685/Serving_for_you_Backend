@@ -12,7 +12,7 @@ def obtener(db: Session, user: dict) -> PerfilOut:
     try:
         uid = uuid.UUID(user["sub"])
     except (KeyError, ValueError):
-        raise NoAutenticado("Token inválido")
+        raise NoAutenticado("Token inválido") from None
 
     if user.get("rol") == "distribuidor":
         d = db.get(Distribuidor, uid)

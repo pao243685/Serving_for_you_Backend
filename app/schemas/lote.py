@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Literal
 
@@ -20,7 +20,7 @@ def a_utc_naive(dt: datetime) -> datetime:
     """La columna `caducidad` es TIMESTAMP sin zona: guardamos siempre UTC.
     Si el front manda fecha sin zona horaria, se toma como UTC."""
     if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
     return dt
 
 
@@ -79,7 +79,7 @@ class LoteCreate(BaseModel):
     @classmethod
     def caducidad_futura(cls, v: datetime) -> datetime:
         v = a_utc_naive(v)
-        if v <= datetime.now(timezone.utc).replace(tzinfo=None):
+        if v <= datetime.now(UTC).replace(tzinfo=None):
             raise ValueError("La caducidad debe ser una fecha futura")
         return v
 

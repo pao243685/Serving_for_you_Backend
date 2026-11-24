@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import String, cast, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -18,16 +18,15 @@ from app.schemas.lote import (
     Vigencia,
 )
 
-
 # ---------------------------------------------------------------- helpers internos
 
 
 def _ahora() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC, como la columna
+    return datetime.now(UTC).replace(tzinfo=None)  # naive UTC, como la columna
 
 
 def _utc(dt: datetime) -> datetime:
-    return dt.replace(tzinfo=timezone.utc)
+    return dt.replace(tzinfo=UTC)
 
 
 def _vigencia(caducidad: datetime, ahora: datetime) -> Vigencia:
@@ -198,7 +197,7 @@ def crear(db: Session, id_distribuidor: uuid.UUID, data: LoteCreate) -> LoteOut:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto("No se pudo registrar el lote")
+        raise Conflicto("No se pudo registrar el lote") from None
     db.refresh(stock)
     db.refresh(link)
     return _a_out(stock, producto, link.fecha_registro)
@@ -219,7 +218,7 @@ def editar(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto("No se pudo actualizar el lote")
+        raise Conflicto("No se pudo actualizar el lote") from None
     db.refresh(s)
     return _a_out(s, p, f, _vendido(db, [s.id_stock]).get(s.id_stock, 0))
 
@@ -242,4 +241,4 @@ def borrar(db: Session, id_distribuidor: uuid.UUID, id_stock: uuid.UUID) -> None
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto("No se pudo borrar el lote porque tiene registros ligados")
+        raise Conflicto("No se pudo borrar el lote porque tiene registros ligados") from None

@@ -29,7 +29,7 @@ def registrar_distribuidor(db: Session, data: RegistroDistribuidor) -> Distribui
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto(MSG_CORREO)
+        raise Conflicto(MSG_CORREO) from None
     return dist
 
 
@@ -49,7 +49,7 @@ def registrar_cliente(db: Session, data: RegistroCliente) -> Cliente:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto(MSG_CORREO)
+        raise Conflicto(MSG_CORREO) from None
     return cliente
 
 

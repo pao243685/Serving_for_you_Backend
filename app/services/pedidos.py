@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -47,14 +47,14 @@ PASO = {"PENDIENTE": 1, "POR_VALIDAR": 1, "EN_PROCESO": 2, "EN_ENVIO": 3, "ENTRE
 
 
 def _ahora_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _utc(dt: datetime | None) -> datetime | None:
     """Las columnas TIMESTAMP sin zona se guardan en UTC; se devuelven con zona explícita."""
     if dt is None:
         return None
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
 
 
 def _dinero(x: float) -> float:
@@ -347,7 +347,7 @@ def crear(db: Session, id_cliente: uuid.UUID, data: PedidoCreate) -> PedidoOut:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto("No se pudo crear el pedido, intenta de nuevo")
+        raise Conflicto("No se pudo crear el pedido, intenta de nuevo") from None
     db.refresh(pedido)
     return _armar(db, [pedido])[0]
 
@@ -409,7 +409,7 @@ def obtener(db: Session, user: dict, id_pedido: uuid.UUID) -> PedidoOut:
     try:
         uid = uuid.UUID(user["sub"])
     except (KeyError, ValueError):
-        raise NoAutenticado("Token inválido")
+        raise NoAutenticado("Token inválido") from None
     stmt = select(Pedido).where(Pedido.id_pedido == id_pedido)
     if user.get("rol") == "cliente":
         stmt = stmt.where(Pedido.cliente_id == uid)
@@ -465,9 +465,7 @@ def _cancelar(db: Session, pedido: Pedido, por: str, motivo: str | None) -> Pedi
     # Pagos: lo no cobrado se anula. Un anticipo ya CONFIRMADO se queda así (hay que
     # reembolsarlo; el pedido lo marca con reembolso_pendiente).
     for pago in db.scalars(select(Pago).where(Pago.pedido_id == id_pedido)):
-        if pago.estado in ("PENDIENTE", "POR_VALIDAR"):
-            pago.estado = "ANULADO"
-        elif pago.tipo == "FINAL" and pago.estado != "CONFIRMADO":
+        if pago.estado in ("PENDIENTE", "POR_VALIDAR") or (pago.tipo == "FINAL" and pago.estado != "CONFIRMADO"):
             pago.estado = "ANULADO"
 
     pedido.estatus = "CANCELADO"
@@ -478,6 +476,6 @@ def _cancelar(db: Session, pedido: Pedido, por: str, motivo: str | None) -> Pedi
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto("No se pudo cancelar el pedido")
+        raise Conflicto("No se pudo cancelar el pedido") from None
     db.refresh(pedido)
     return _armar(db, [pedido])[0]

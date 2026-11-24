@@ -1,0 +1,221 @@
+name: CI/CD backend
+
+# develop: CI + imagen + despliegue automático en AWS (environment "develop").
+# main:    CI + imagen (tag latest) + despliegue con aprobación (environment "production").
+# Pull requests: solo CI.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # Usuario de Docker Hub: variable DOCKERHUB_USERNAME (recomendado) o, si no existe, el secreto
+  HUB_USER: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+  # true cuando hay que publicar la imagen: push (o ejecución manual) en develop o main
+  PUBLISH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
+
+jobs:
+  # ------------------------------------------------------------------
+  # 1. CI: calidad, seguridad y pruebas (pull requests, develop y main)
+  # ------------------------------------------------------------------
+  test:
+    name: Lint, seguridad y pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: serving
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: ci
+      PGDATABASE: serving
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks revisa también el historial
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt ruff pytest bandit pip-audit
+
+      - name: Lint (ruff)
+        run: ruff check app
+
+      - name: Análisis de seguridad del código (bandit)
+        run: bandit -q -r app -ll
+
+      - name: Auditoría de dependencias (pip-audit)
+        run: pip-audit -r requirements.txt
+
+      - name: Buscar secretos en el repositorio (gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source /repo --no-banner --redact
+
+      - name: Aplicar el esquema v3 de la BD (01 a 04)
+        run: |
+          for f in db/01_schema.sql db/02_roles.sql db/03_funciones_triggers.sql db/04_permisos_rls.sql; do
+            echo "== $f"; psql -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Pruebas de la BD v3 (flujos, triggers y RLS)
+        run: psql -v ON_ERROR_STOP=1 -q -f db/tests/smoke.sql
+
+      # El servidor crea su BD con estos mismos scripts (deploy/init-db): se prueban aquí
+      - name: Esquema actual + usuario app_backend (scripts de inicio del servidor)
+        run: |
+          sudo mkdir -p /schema && sudo cp db/squema-1.0.0.sql /schema/
+          psql -q -c "CREATE DATABASE serving_actual"
+          export POSTGRES_USER=postgres POSTGRES_DB=serving_actual APP_BACKEND_PASSWORD=ci_backend
+          bash deploy/init-db/01_schema.sh
+          bash deploy/init-db/99_set_backend_password.sh
+          PGUSER=app_backend PGPASSWORD=ci_backend psql -d serving_actual -v ON_ERROR_STOP=1 -q \
+            -c "SELECT count(*) FROM distribuidores" -c "SELECT count(*) FROM pedidos"
+
+      - name: Pruebas del backend (pytest)
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:ci@localhost:5432/serving
+          JWT_SECRET: secreto-solo-para-ci
+        # el código 5 de pytest significa "no hay pruebas": se permite mientras no existan
+        run: pytest -q || [ $? -eq 5 ]
+
+  # ------------------------------------------------------------------
+  # 2. Imagen Docker: se construye y escanea siempre; se sube a Docker Hub en develop y main
+  # ------------------------------------------------------------------
+  image:
+    name: Construir y publicar imagen
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Nombre de la imagen
+        # Docker exige minúsculas en el nombre de la imagen
+        run: echo "IMAGE=$(printf '%s' "${HUB_USER:-local}" | tr '[:upper:]' '[:lower:]')/sfy-backend" >> "$GITHUB_ENV"
+
+      - name: Construir imagen (local, para escanearla)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE }}:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Escanear vulnerabilidades críticas (trivy)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:ci"
+
+      - name: Iniciar sesión en Docker Hub
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.HUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publicar imagen en Docker Hub
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # sha (lo que se despliega) + nombre de la rama; "latest" solo desde main
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}:latest', env.IMAGE) || '' }}
+          cache-from: type=gha
+
+  # ------------------------------------------------------------------
+  # 3. CD: despliegue por SSH en la EC2 del backend
+  #    develop -> automático (environment "develop")
+  #    main    -> con aprobación (environment "production", con revisores requeridos)
+  #    GitHub -> EC2 del front (salto) -> EC2 del backend (red privada)
+  # ------------------------------------------------------------------
+  deploy:
+    name: Desplegar en EC2
+    needs: image
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'develop' }}
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          FRONT_HOST: ${{ secrets.EC2_FRONT_HOST }}
+          BACK_HOST: ${{ secrets.EC2_BACK_PRIVATE_IP }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          for i in 1 2 3 4 5; do
+            ssh-keyscan -T 10 -H "$FRONT_HOST" >> ~/.ssh/known_hosts 2>/dev/null && break
+            echo "La EC2 del front no responde (¿lab apagado?), reintento $i..."; sleep 10
+          done
+          test -s ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONF
+          Host jump
+            HostName $FRONT_HOST
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            ConnectTimeout 20
+            ServerAliveInterval 30
+          Host backend
+            HostName $BACK_HOST
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            ProxyJump jump
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+            ServerAliveInterval 30
+          CONF
+          chmod 600 ~/.ssh/config
+
+      - name: Copiar archivos de despliegue a la EC2 del backend
+        run: |
+          ssh backend 'mkdir -p /opt/sfy/deploy /opt/sfy/db'
+          scp deploy/docker-compose.prod.yml backend:/opt/sfy/docker-compose.yml
+          scp deploy/deploy.sh deploy/backup.sh backend:/opt/sfy/
+          tar czf - db/squema-1.0.0.sql deploy/init-db | ssh backend 'cd /opt/sfy && tar xzf -'
+
+      - name: Desplegar (con reversión automática si falla)
+        # SC2029: las variables se expanden en el runner a propósito
+        run: |
+          HUB="$(printf '%s' "$HUB_USER" | tr '[:upper:]' '[:lower:]')"
+          # shellcheck disable=SC2029
+          ssh backend "bash /opt/sfy/deploy.sh ${{ github.sha }} $HUB"

@@ -24,7 +24,7 @@ def get_current_user(
     try:
         return decode_token(creds.credentials)
     except jwt.PyJWTError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido o expirado")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido o expirado") from None
 
 
 def require_distribuidor(user: dict = Depends(get_current_user)) -> uuid.UUID:
@@ -36,7 +36,7 @@ def require_distribuidor(user: dict = Depends(get_current_user)) -> uuid.UUID:
     try:
         return uuid.UUID(user["sub"])
     except (KeyError, ValueError):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido") from None
 
 
 def require_cliente(user: dict = Depends(get_current_user)) -> uuid.UUID:
@@ -46,4 +46,4 @@ def require_cliente(user: dict = Depends(get_current_user)) -> uuid.UUID:
     try:
         return uuid.UUID(user["sub"])
     except (KeyError, ValueError):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido") from None

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import NoReturn
 
 from sqlalchemy import String, cast, func, or_, select
@@ -52,7 +52,7 @@ def _guardar(db: Session, pedido: Pedido, error: str) -> PedidoOut:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto(error)
+        raise Conflicto(error) from None
     db.refresh(pedido)
     return base._armar(db, [pedido])[0]
 
@@ -175,7 +175,7 @@ def confirmar_entrega(
             }.get(pedido.estatus, "El pedido no está listo para entregarse"),
         )
     pedido.estatus = "ENTREGADO"
-    pedido.fecha_entrega_real = datetime.now(timezone.utc)
+    pedido.fecha_entrega_real = datetime.now(UTC)
     return _guardar(db, pedido, "No se pudo confirmar la entrega")
 
 

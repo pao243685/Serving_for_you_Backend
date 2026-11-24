@@ -1,0 +1,28 @@
+# Política de lint del repo. El CI ejecuta exactamente lo mismo:  ruff check app
+# (sin este archivo, ruff usaría sus reglas por defecto, que cambian entre versiones)
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E4",   # errores básicos de estilo/sintaxis
+    "E7",
+    "E9",
+    "F",    # pyflakes: errores reales (variables sin usar, imports rotos...)
+    "I",    # orden y formato de importaciones
+    "UP",   # usar la sintaxis moderna de Python 3.12
+    "B",    # bugbear: errores frecuentes
+    "SIM",  # simplificaciones
+    "RUF",  # reglas propias de ruff
+]
+ignore = [
+    # En FastAPI/Pydantic, Depends(), Query(), Body()... en los defaults es el estilo
+    # normal de la librería; bugbear lo marca pero no es un error.
+    "B008",
+    # `class X(str, Enum)` es intencional: se conserva el comportamiento actual de
+    # str() y de la serialización en lugar de migrar a enum.StrEnum.
+    "UP042",
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["B", "SIM"]

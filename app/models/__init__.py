@@ -6,13 +6,13 @@ from app.models.producto import CategoriaPostre, Producto
 from app.models.stock import ProductoStock, Stock
 
 __all__ = [
+    "CategoriaPostre",
     "Cliente",
-    "Distribuidor",
     "DetallePedido",
     "DetallePedidoLote",
+    "Distribuidor",
     "Pago",
     "Pedido",
-    "CategoriaPostre",
     "Producto",
     "ProductoStock",
     "Stock",

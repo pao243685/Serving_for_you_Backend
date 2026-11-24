@@ -1,7 +1,7 @@
 import secrets
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -82,7 +82,7 @@ def _poner_stock_disponible(db: Session, productos: list[Producto]) -> None:
     con la que se reserva el stock al crear un pedido."""
     if not productos:
         return
-    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    ahora = datetime.now(UTC).replace(tzinfo=None)
     por_producto = dict(
         db.execute(
             select(ProductoStock.id_producto, func.sum(Stock.stock))
@@ -200,7 +200,7 @@ def crear(db: Session, id_distribuidor: uuid.UUID, data: ProductoCreate) -> Prod
         except IntegrityError:
             db.rollback()
             if _duplicado(db, id_distribuidor, data.nombre, data.unidad_medida, data.tamano):
-                raise Conflicto(MSG_DUPLICADO)  # carrera entre dos peticiones
+                raise Conflicto(MSG_DUPLICADO) from None  # carrera entre dos peticiones
             continue
         db.refresh(producto)
         return producto
@@ -221,7 +221,7 @@ def editar(
     if any(k in cambios for k in ("nombre", "unidad_medida", "tamano")):
         nombre = cambios.get("nombre", producto.nombre)
         unidad = cambios.get("unidad_medida", producto.unidad_medida)
-        tamano = cambios["tamano"] if "tamano" in cambios else producto.tamano
+        tamano = cambios.get("tamano", producto.tamano)
         if _duplicado(db, id_distribuidor, nombre, unidad, tamano, excluir=producto.id_producto):
             raise Conflicto(MSG_DUPLICADO)
 
@@ -232,7 +232,7 @@ def editar(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto(MSG_DUPLICADO)
+        raise Conflicto(MSG_DUPLICADO) from None
     db.refresh(producto)
     return producto
 
@@ -267,4 +267,4 @@ def borrar(db: Session, id_distribuidor: uuid.UUID, id_producto: uuid.UUID) -> N
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto("No se pudo borrar el producto porque tiene registros ligados")
+        raise Conflicto("No se pudo borrar el producto porque tiene registros ligados") from None

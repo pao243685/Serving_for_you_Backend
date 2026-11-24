@@ -9,7 +9,7 @@ Lo único escrito a mano son los mensajes de error por endpoint (ERRORES) y la g
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import FastAPI
 
@@ -402,7 +402,7 @@ DESCRIPCIONES: dict[str, dict[str, str]] = {
 
 
 def _ejemplos() -> dict[type, dict]:
-    futuro = datetime.now(timezone.utc) + timedelta(days=3)
+    futuro = datetime.now(UTC) + timedelta(days=3)
     fecha = futuro.strftime("%Y-%m-%dT%H:%M:%SZ")
     cliente = "3f2b8c1e-6a4d-4e55-9a31-0c1d2e3f4a5b"
     dist = "9b1d7f20-52c3-4a8e-8d6f-1e2a3b4c5d6e"

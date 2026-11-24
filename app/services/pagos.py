@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import NoReturn
 
 from sqlalchemy import Numeric, String, and_, cast, exists, func, or_, select
@@ -19,12 +19,11 @@ from app.schemas.pago import (
 from app.schemas.pedido import PedidoOut
 from app.services.pedidos import _armar
 
-
 # ---------------------------------------------------------------- helpers internos
 
 
 def _ahora() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _dinero(x) -> float:
@@ -68,7 +67,7 @@ def _guardar(db: Session, pedido: Pedido, error: str) -> PedidoOut:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise Conflicto(error)
+        raise Conflicto(error) from None
     db.refresh(pedido)
     return _armar(db, [pedido])[0]
 
@@ -283,7 +282,7 @@ def _resumen(db: Session, id_distribuidor: uuid.UUID) -> ResumenCobranza:
     linea = cast(DetallePedido.precio_unitario, Numeric(12, 2)) * DetallePedido.cantidad
     suyo = Pedido.distribuidor_id == id_distribuidor
     vivo = Pedido.estatus != "CANCELADO"
-    desde = (datetime.now(timezone.utc) - timedelta(days=7)).replace(tzinfo=None)
+    desde = (datetime.now(UTC) - timedelta(days=7)).replace(tzinfo=None)
     ant, _reemb, _fin = _subconsultas()
 
     total_vendido = db.scalar(

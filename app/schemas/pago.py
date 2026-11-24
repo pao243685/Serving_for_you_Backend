@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, TypeAdapter, field_validator, model_validator
@@ -49,9 +49,9 @@ class ValidarAnticipoIn(BaseModel):
     @classmethod
     def futura(cls, v: datetime) -> datetime:
         if v.tzinfo is None:  # sin zona horaria se toma como UTC
-            v = v.replace(tzinfo=timezone.utc)
-        v = v.astimezone(timezone.utc)
-        if v <= datetime.now(timezone.utc):
+            v = v.replace(tzinfo=UTC)
+        v = v.astimezone(UTC)
+        if v <= datetime.now(UTC):
             raise ValueError("La fecha de entrega debe ser futura")
         return v
 
