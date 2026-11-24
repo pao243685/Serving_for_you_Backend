@@ -65,6 +65,9 @@ def mis_productos(
     unidad_medida: Literal["KG", "L", "PZ"] | None = Query(
         default=None, description="Filtra por unidad: PZ (pieza), KG (kilo), L (litro)"
     ),
+    tamano: Literal["PEQUEÑO", "MEDIANO", "GRANDE"] | None = Query(
+        default=None, description="Filtra por tamaño del producto"
+    ),
     q: str | None = Query(default=None, max_length=100, description="Busca por nombre, SKU o descripción"),
     activo: bool | None = Query(
         default=None, description="true = solo activos, false = solo desactivados, vacío = todos"
@@ -76,7 +79,7 @@ def mis_productos(
 ):
     items, total = productos_service.listar(
         db, id_distribuidor, categoria, activo=activo, page=page, page_size=page_size,
-        unidad_medida=unidad_medida, q=q,
+        unidad_medida=unidad_medida, q=q, tamano=tamano,
     )
     conteos = productos_service.conteos(db, id_distribuidor, activo, q)
     return MisProductosPage(

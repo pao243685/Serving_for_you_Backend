@@ -46,6 +46,9 @@ def catalogo_del_distribuidor(
     unidad_medida: Literal["KG", "L", "PZ"] | None = Query(
         default=None, description="Filtra por unidad: PZ (pieza), KG (kilo), L (litro)"
     ),
+    tamano: Literal["PEQUEÑO", "MEDIANO", "GRANDE"] | None = Query(
+        default=None, description="Filtra por tamaño del producto"
+    ),
     q: str | None = Query(default=None, max_length=100, description="Busca por nombre, SKU o descripción"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
@@ -56,7 +59,7 @@ def catalogo_del_distribuidor(
     dist = distribuidores_service.obtener(db, id_distribuidor)
     items, total = productos_service.listar(
         db, id_distribuidor, categoria, activo=True, page=page, page_size=page_size,
-        unidad_medida=unidad_medida, q=q,
+        unidad_medida=unidad_medida, q=q, tamano=tamano,
     )
     conteos = productos_service.conteos(db, id_distribuidor, True, q)
     return ProductosPublicosPage(

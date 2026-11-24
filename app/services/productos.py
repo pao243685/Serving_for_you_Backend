@@ -138,6 +138,7 @@ def listar(
     page_size: int,
     unidad_medida: str | None = None,
     q: str | None = None,
+    tamano: str | None = None,
 ) -> tuple[list[Producto], int]:
     """activo=True para el catálogo de clientes; None o bool para la vista del dueño."""
     filtros = [Producto.id_distribuidor == id_distribuidor]
@@ -145,6 +146,8 @@ def listar(
         filtros.append(Producto.categoria == categoria)
     if unidad_medida:
         filtros.append(Producto.unidad_medida == unidad_medida)
+    if tamano:
+        filtros.append(Producto.tamano == tamano)
     if q and q.strip():
         t = q.strip()
         filtros.append(
