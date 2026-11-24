@@ -11,6 +11,7 @@ class DistribuidorOut(BaseModel):
     nombre_marca: str
     nombre_encargado: str
     porcentaje_anticipo: float  # para mostrar el anticipo en el carrito antes de confirmar
+    direccion_local: str  # el "(Centro)" junto al nombre: dónde está el local
 
 
 class DistribuidoresPage(BaseModel):
