@@ -88,6 +88,7 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 | Pantalla | Endpoints |
 |---|---|
 | Iniciar sesión y registro | `POST /auth/login`, `POST /auth/registro/cliente`, `POST /auth/registro/distribuidor` |
+| Cabecera de todas las pantallas | `GET /me` (nombre y negocio de quien inició sesión) |
 | Catálogo para cafeterías | `GET /distribuidores`, `GET /distribuidores/{id}/productos` (filtros `categoria`, `unidad_medida`, `q`), `POST /pedidos` |
 | Mis pedidos y rastreo | `GET /mis-pedidos?tab=`, `GET /pedidos/{id}`, `POST /pedidos/{id}/cancelar`, `POST /pedidos/{id}/anticipo/comprobante` |
 | Catálogo de repostería (distribuidor) | `GET /mis-productos`, `POST /productos`, `PATCH /productos/{id}`, `DELETE /productos/{id}`, `GET /categorias` |
@@ -105,6 +106,12 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 - "Verificado" por línea, "Sin merma" y el historial de cancelaciones no existen: cada pedido guarda un
   solo registro de cancelación (`cancelado_por`, `motivo_cancelacion`, `fecha_cancelacion`).
 - La orden manual se captura con el correo de un cliente que ya esté registrado.
+- `GET /me` devuelve `nombre` (el encargado, o el negocio si eres cliente) y `negocio`. No hay foto de perfil
+  ni cargo ("Operaciones & Logística", "Gerente Operativo").
+- En el carrito, el anticipo se calcula con `distribuidor.porcentaje_anticipo`, que viene en el catálogo.
+- `stock_disponible` es la suma de los lotes sin vencer: úsalo para limitar el contador del carrito.
+  Al confirmar, la API vuelve a verificar el stock.
+- Los números de las pestañas de los catálogos vienen en `conteos` (por unidad y por categoría).
 """
 
 DESCRIPCION = _GUIA.replace("__TTL__", str(settings.jwt_expire_minutes)).replace(
@@ -112,7 +119,10 @@ DESCRIPCION = _GUIA.replace("__TTL__", str(settings.jwt_expire_minutes)).replace
 )
 
 TAGS = [
-    {"name": "auth", "description": "Registro e inicio de sesión. Aquí se obtiene el token."},
+    {
+        "name": "auth",
+        "description": "Registro, inicio de sesión y perfil (`GET /me`). Aquí se obtiene el token.",
+    },
     {
         "name": "distribuidores",
         "description": "Lo que ve una cafetería: distribuidores disponibles y el catálogo de cada uno.",
@@ -345,6 +355,25 @@ DESCRIPCIONES: dict[str, dict[str, str]] = {
     "LoteOut": {
         "codigo_lote": "Código corto para mostrar. Se deriva del id; no se guarda.",
         "por_agotarse": "true si quedan pocas unidades (umbral configurable en el servidor).",
+    },
+    "PerfilOut": {
+        "nombre": "Lo que muestra la cabecera: el encargado si eres distribuidor, el nombre del negocio si eres cliente.",
+        "negocio": "Nombre de la marca (distribuidor) o de la cafetería (cliente).",
+        "distribuidor": "Solo para el rol distribuidor: dirección, datos bancarios y porcentaje de anticipo.",
+    },
+    "DistribuidorOut": {
+        "porcentaje_anticipo": "Porcentaje del total que se paga como anticipo. Úsalo para mostrar el anticipo en el carrito antes de confirmar.",
+    },
+    "ProductoPublicoStock": {
+        "stock_disponible": "Unidades en lotes sin vencer. Úsalo para limitar el contador del carrito.",
+    },
+    "ProductoDuenoStock": {
+        "stock_disponible": "Unidades en lotes sin vencer.",
+    },
+    "ConteosCatalogo": {
+        "todos": "Total de productos (respeta la búsqueda q).",
+        "por_unidad": "Productos por unidad (PZ, KG, L) para las pestañas. No depende del filtro de unidad ni de categoría.",
+        "por_categoria": "Productos por categoría para las pestañas. No depende del filtro de unidad ni de categoría.",
     },
     "ResumenMisPedidos": {
         "saldo_por_liquidar": "Saldo pendiente de los pedidos que van en ruta.",
