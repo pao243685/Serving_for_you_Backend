@@ -42,6 +42,8 @@ class LoteOut(BaseModel):
     codigo_lote: str  # corto y derivado del id (la BD no guarda un código propio)
     producto: ProductoDeLote
     stock: int
+    cantidad_inicial: int  # calculada: disponibles + unidades en pedidos no cancelados
+    porcentaje_disponible: int  # 0 a 100, para la barra de disponibilidad
     caducidad: datetime
     fecha_registro: datetime
     vigencia: Vigencia

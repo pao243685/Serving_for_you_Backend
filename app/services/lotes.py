@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.exceptions import Conflicto, NoEncontrado
-from app.models import DetallePedidoLote, Producto, ProductoStock, Stock
+from app.models import DetallePedidoLote, Pedido, Producto, ProductoStock, Stock
 from app.schemas.lote import (
     ConteosLotes,
     EstadoLote,
@@ -48,18 +48,38 @@ def codigo_lote(id_stock: uuid.UUID) -> str:
     return f"LT-{id_stock.hex[:8].upper()}"
 
 
-def _a_out(stock: Stock, producto: Producto, fecha_registro: datetime) -> LoteOut:
+def _a_out(
+    stock: Stock, producto: Producto, fecha_registro: datetime, vendido: int = 0
+) -> LoteOut:
     ahora = _ahora()
+    inicial = stock.stock + vendido
     return LoteOut(
         id_stock=stock.id_stock,
         codigo_lote=codigo_lote(stock.id_stock),
         producto=ProductoDeLote.model_validate(producto),
         stock=stock.stock,
+        cantidad_inicial=inicial,
+        porcentaje_disponible=round(stock.stock * 100 / inicial) if inicial else 0,
         caducidad=_utc(stock.caducidad),
         fecha_registro=_utc(fecha_registro),
         vigencia=_vigencia(stock.caducidad, ahora),
         por_agotarse=0 < stock.stock <= settings.lote_bajo_stock,
     )
+
+
+def _vendido(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """Unidades de cada lote que están en pedidos no cancelados. Los pedidos cancelados ya
+    devolvieron su stock, así que no cuentan. La cantidad inicial de un lote es lo que
+    queda más esto; si se ajustan las existencias a mano, la inicial cambia igual."""
+    if not ids:
+        return {}
+    filas = db.execute(
+        select(DetallePedidoLote.stock_id, func.sum(DetallePedidoLote.cantidad))
+        .join(Pedido, Pedido.id_pedido == DetallePedidoLote.pedido_id)
+        .where(DetallePedidoLote.stock_id.in_(ids), Pedido.estatus != "CANCELADO")
+        .group_by(DetallePedidoLote.stock_id)
+    ).all()
+    return {stock_id: int(n) for stock_id, n in filas}
 
 
 def _base_select(id_distribuidor: uuid.UUID):
@@ -162,7 +182,8 @@ def listar(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    return [_a_out(s, p, f) for s, p, f in filas], conteos, total
+    vendidos = _vendido(db, [s.id_stock for s, _p, _f in filas])
+    return [_a_out(s, p, f, vendidos.get(s.id_stock, 0)) for s, p, f in filas], conteos, total
 
 
 def crear(db: Session, id_distribuidor: uuid.UUID, data: LoteCreate) -> LoteOut:
@@ -185,7 +206,7 @@ def crear(db: Session, id_distribuidor: uuid.UUID, data: LoteCreate) -> LoteOut:
 
 def obtener(db: Session, id_distribuidor: uuid.UUID, id_stock: uuid.UUID) -> LoteOut:
     s, p, f = _obtener_lote_propio(db, id_distribuidor, id_stock)
-    return _a_out(s, p, f)
+    return _a_out(s, p, f, _vendido(db, [s.id_stock]).get(s.id_stock, 0))
 
 
 def editar(
@@ -200,7 +221,7 @@ def editar(
         db.rollback()
         raise Conflicto("No se pudo actualizar el lote")
     db.refresh(s)
-    return _a_out(s, p, f)
+    return _a_out(s, p, f, _vendido(db, [s.id_stock]).get(s.id_stock, 0))
 
 
 def borrar(db: Session, id_distribuidor: uuid.UUID, id_stock: uuid.UUID) -> None:
