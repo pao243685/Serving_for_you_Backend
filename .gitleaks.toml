@@ -1,0 +1,11 @@
+# Configuración de gitleaks (la usa el CI: paso "Buscar secretos en el repositorio").
+# Se conservan TODAS las reglas por defecto; solo se exceptúan ejemplos documentados.
+title = "Serving for you - gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ejemplos de la documentación de la API (no son secretos reales)"
+# Token de ejemplo de /docs: solo el encabezado estándar de un JWT seguido de "..."
+regexes = ['''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.\.\.''']
