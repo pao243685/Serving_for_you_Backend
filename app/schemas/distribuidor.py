@@ -10,6 +10,7 @@ class DistribuidorOut(BaseModel):
     id_distribuidor: uuid.UUID
     nombre_marca: str
     nombre_encargado: str
+    porcentaje_anticipo: float  # para mostrar el anticipo en el carrito antes de confirmar
 
 
 class DistribuidoresPage(BaseModel):
