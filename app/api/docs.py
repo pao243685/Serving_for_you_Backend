@@ -108,7 +108,8 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
   recordar la última. El distribuidor sí tiene `direccion_local`, visible en su ficha pública.
 - Filtros de catálogo: `unidad_medida` (PZ, KG, L), `tamano` (PEQUEÑO, MEDIANO, GRANDE), `categoria` y `q`.
 - "Sin merma" no existe. "Verificado" por línea puede mostrarse en todas las líneas de un pedido en ruta o
-  entregado, porque solo sale a ruta tras completar el armado. El historial de cancelación es un solo registro:
+  entregado, porque solo sale a ruta tras completar el armado. En una entrega en mostrador (EN_PROCESO directo a
+  ENTREGADO) ese paso se salta: ahí conviene no mostrarlo. El historial de cancelación es un solo registro:
   `cancelado_por`, `motivo_cancelacion` y `fecha_cancelacion`.
 - Horas del stepper de un pedido: paso 1 = `fecha_realizacion`; paso 2 (en preparación) = `fecha_validacion` del
   pago ANTICIPO; paso 4 = `fecha_entrega_real`. La hora de "En ruta" (paso 3) no se guarda.
