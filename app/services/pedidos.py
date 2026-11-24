@@ -85,7 +85,7 @@ def _acciones(pedido: Pedido, anticipo: Pago | None, final: Pago | None) -> Acci
         confirmar_entrega=est in ("EN_PROCESO", "EN_ENVIO"),
         cancelar_proveedor=est in CANCELABLES_PROVEEDOR,
         registrar_liquidacion=(
-            est in ("EN_ENVIO", "ENTREGADO")
+            est in ("EN_PROCESO", "EN_ENVIO", "ENTREGADO")
             and anticipo_ok
             and final is not None
             and final.estado not in ("CONFIRMADO", "ANULADO")

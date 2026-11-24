@@ -143,8 +143,8 @@ def registrar_liquidacion(
     """Cobra el saldo contra entrega. No cambia el estatus del pedido (eso es 'confirmar
     entrega'); se puede registrar con el pedido en ruta o ya entregado."""
     pedido = _pedido_bloqueado(db, id_pedido, distribuidor_id=id_distribuidor)
-    if pedido.estatus not in ("EN_ENVIO", "ENTREGADO"):
-        _conflicto(db, "El saldo se cobra cuando el pedido va en ruta o ya fue entregado")
+    if pedido.estatus not in ("EN_PROCESO", "EN_ENVIO", "ENTREGADO"):
+        _conflicto(db, "El saldo se cobra con el pedido ya en preparación, en ruta o entregado")
     anticipo = _pago(db, id_pedido, "ANTICIPO")
     if anticipo is None or anticipo.estado != "CONFIRMADO":
         _conflicto(db, "El anticipo de este pedido no está confirmado")
