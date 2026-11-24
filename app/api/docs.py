@@ -99,12 +99,19 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 ## Lo que el diseño pide y la base de datos no guarda
 
 - `folio` (`PED-1A2B3C4D`) y `codigo_lote` (`LT-1A2B3C4D`) se **derivan del id**; no se pueden elegir ni editar.
-- Los lotes no guardan cantidad inicial: muestra "N disponibles", sin barra de porcentaje.
+- La barra de un lote usa `cantidad_inicial` y `porcentaje_disponible`, que se **calculan**: lo que queda más las
+  unidades en pedidos no cancelados. Si ajustas las existencias a mano con `PATCH /lotes/{id}`, la inicial
+  cambia en la misma cantidad.
 - No hay pago con tarjeta: el anticipo es transferencia y el saldo, efectivo o transferencia.
 - Un negocio es un cliente: no hay varias sucursales. La "sucursal" del diseño es el nombre del cliente.
-- El cierre de pedidos a las 18:00 no está implementado.
-- "Verificado" por línea, "Sin merma" y el historial de cancelaciones no existen: cada pedido guarda un
-  solo registro de cancelación (`cancelado_por`, `motivo_cancelacion`, `fecha_cancelacion`).
+- El cliente no guarda dirección: la de entrega se escribe en cada pedido (`direccion_entrega`) y el front puede
+  recordar la última. El distribuidor sí tiene `direccion_local`, visible en su ficha pública.
+- Filtros de catálogo: `unidad_medida` (PZ, KG, L), `tamano` (PEQUEÑO, MEDIANO, GRANDE), `categoria` y `q`.
+- "Sin merma" no existe. "Verificado" por línea puede mostrarse en todas las líneas de un pedido en ruta o
+  entregado, porque solo sale a ruta tras completar el armado. El historial de cancelación es un solo registro:
+  `cancelado_por`, `motivo_cancelacion` y `fecha_cancelacion`.
+- Horas del stepper de un pedido: paso 1 = `fecha_realizacion`; paso 2 (en preparación) = `fecha_validacion` del
+  pago ANTICIPO; paso 4 = `fecha_entrega_real`. La hora de "En ruta" (paso 3) no se guarda.
 - La orden manual se captura con el correo de un cliente que ya esté registrado.
 - `GET /me` devuelve `nombre` (el encargado, o el negocio si eres cliente) y `negocio`. No hay foto de perfil
   ni cargo ("Operaciones & Logística", "Gerente Operativo").
@@ -355,6 +362,14 @@ DESCRIPCIONES: dict[str, dict[str, str]] = {
     "LoteOut": {
         "codigo_lote": "Código corto para mostrar. Se deriva del id; no se guarda.",
         "por_agotarse": "true si quedan pocas unidades (umbral configurable en el servidor).",
+        "cantidad_inicial": "Calculada: unidades disponibles más las que están en pedidos no cancelados.",
+        "porcentaje_disponible": "Disponibles entre cantidad_inicial, de 0 a 100. Para la barra del lote.",
+    },
+    "LineaPedido": {
+        "descripcion_producto": "Descripción del catálogo; sirve de subtítulo bajo el nombre del producto.",
+    },
+    "ProductoDeLote": {
+        "descripcion_producto": "Descripción del catálogo; sirve de subtítulo bajo el nombre del producto.",
     },
     "PerfilOut": {
         "nombre": "Lo que muestra la cabecera: el encargado si eres distribuidor, el nombre del negocio si eres cliente.",
@@ -363,6 +378,7 @@ DESCRIPCIONES: dict[str, dict[str, str]] = {
     },
     "DistribuidorOut": {
         "porcentaje_anticipo": "Porcentaje del total que se paga como anticipo. Úsalo para mostrar el anticipo en el carrito antes de confirmar.",
+        "direccion_local": "Dirección del local del distribuidor (por ejemplo, para el \"(Centro)\" junto a su nombre).",
     },
     "ProductoPublicoStock": {
         "stock_disponible": "Unidades en lotes sin vencer. Úsalo para limitar el contador del carrito.",
