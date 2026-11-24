@@ -78,8 +78,10 @@ def mis_productos(
         db, id_distribuidor, categoria, activo=activo, page=page, page_size=page_size,
         unidad_medida=unidad_medida, q=q,
     )
+    conteos = productos_service.conteos(db, id_distribuidor, activo, q)
     return MisProductosPage(
         productos=items,
+        conteos=conteos,
         page=page,
         page_size=page_size,
         total=total,

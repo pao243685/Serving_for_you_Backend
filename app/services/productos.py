@@ -16,7 +16,7 @@ from app.models import (
     ProductoStock,
     Stock,
 )
-from app.schemas.producto import ProductoCreate, ProductoUpdate
+from app.schemas.producto import ConteosCatalogo, ProductoCreate, ProductoUpdate
 
 PREFIJOS = {
     CategoriaPostre.PASTELES: "PAS",
@@ -97,6 +97,36 @@ def _poner_stock_disponible(db: Session, productos: list[Producto]) -> None:
     )
     for p in productos:
         p.stock_disponible = int(por_producto.get(p.id_producto, 0))
+
+
+def conteos(
+    db: Session, id_distribuidor: uuid.UUID, activo: bool | None, q: str | None
+) -> ConteosCatalogo:
+    """Cuántos productos hay por unidad y por categoría, para los números de las pestañas."""
+    filtros = [Producto.id_distribuidor == id_distribuidor]
+    if q and q.strip():
+        t = q.strip()
+        filtros.append(
+            or_(
+                Producto.nombre.icontains(t, autoescape=True),
+                Producto.codigo_generado.icontains(t, autoescape=True),
+                Producto.descripcion_producto.icontains(t, autoescape=True),
+            )
+        )
+    if activo is not None:
+        filtros.append(Producto.activo.is_(activo))
+
+    def agrupar(columna) -> dict:
+        filas = db.execute(select(columna, func.count()).where(*filtros).group_by(columna)).all()
+        return {getattr(clave, "value", clave): n for clave, n in filas}
+
+    por_unidad = agrupar(Producto.unidad_medida)
+    por_categoria = agrupar(Producto.categoria)
+    return ConteosCatalogo(
+        todos=sum(por_unidad.values()),
+        por_unidad={u: por_unidad.get(u, 0) for u in ("PZ", "KG", "L")},
+        por_categoria={c.value: por_categoria.get(c.value, 0) for c in CategoriaPostre},
+    )
 
 
 def listar(

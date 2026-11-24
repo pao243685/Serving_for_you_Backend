@@ -58,9 +58,11 @@ def catalogo_del_distribuidor(
         db, id_distribuidor, categoria, activo=True, page=page, page_size=page_size,
         unidad_medida=unidad_medida, q=q,
     )
+    conteos = productos_service.conteos(db, id_distribuidor, True, q)
     return ProductosPublicosPage(
         distribuidor=dist,
         productos=items,
+        conteos=conteos,
         page=page,
         page_size=page_size,
         total=total,

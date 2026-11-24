@@ -40,9 +40,20 @@ class ProductoDuenoStock(ProductoDueno):
     stock_disponible: int  # unidades en lotes sin vencer
 
 
+class ConteosCatalogo(BaseModel):
+    """Números de las pestañas del catálogo. Respetan la búsqueda `q` (y `activo` en el
+    listado del dueño), pero no los filtros `unidad_medida` ni `categoria`, para que cada
+    pestaña muestre su propio total."""
+
+    todos: int
+    por_unidad: dict[str, int]  # PZ, KG y L (siempre las tres)
+    por_categoria: dict[str, int]  # todas las categorías (siempre todas)
+
+
 class ProductosPublicosPage(BaseModel):
     distribuidor: DistribuidorOut
     productos: list[ProductoPublicoStock]
+    conteos: ConteosCatalogo
     page: int
     page_size: int
     total: int
@@ -51,6 +62,7 @@ class ProductosPublicosPage(BaseModel):
 
 class MisProductosPage(BaseModel):
     productos: list[ProductoDuenoStock]
+    conteos: ConteosCatalogo
     page: int
     page_size: int
     total: int
