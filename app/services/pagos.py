@@ -146,9 +146,11 @@ def registrar_liquidacion(
     if pedido.estatus not in ("EN_PROCESO", "EN_ENVIO", "ENTREGADO"):
         _conflicto(db, "El saldo se cobra con el pedido ya en preparación, en ruta o entregado")
     anticipo = _pago(db, id_pedido, "ANTICIPO")
+    final = _pago(db, id_pedido, "FINAL")
+    if anticipo is None and final is not None and final.estado == "CONFIRMADO":
+        _conflicto(db, "Este pedido ya está liquidado: no hay saldo pendiente")  # cobro único
     if anticipo is None or anticipo.estado != "CONFIRMADO":
         _conflicto(db, "El anticipo de este pedido no está confirmado")
-    final = _pago(db, id_pedido, "FINAL")
     if final is None or final.estado == "CONFIRMADO":
         _conflicto(db, "Este pedido ya está liquidado: no hay saldo pendiente")
 
@@ -208,7 +210,13 @@ def _condiciones_tabs() -> dict:
         "pendiente_liquidar": and_(
             activo, ant == "CONFIRMADO", fin.is_not(None), fin != "CONFIRMADO"
         ),
-        "pagados": and_(activo, ant == "CONFIRMADO", or_(fin.is_(None), fin == "CONFIRMADO")),
+        "pagados": and_(
+            activo,
+            or_(
+                and_(ant == "CONFIRMADO", or_(fin.is_(None), fin == "CONFIRMADO")),
+                and_(ant.is_(None), fin == "CONFIRMADO"),  # cobro único: sin anticipo
+            ),
+        ),
         "reembolsos": and_(Pedido.estatus == "CANCELADO", ant == "CONFIRMADO", ant_reemb.is_(None)),
         # todo lo vivo, más lo cancelado que movió dinero; los cancelados sin cobros no estorban
         "todos": or_(activo, ant == "CONFIRMADO"),
