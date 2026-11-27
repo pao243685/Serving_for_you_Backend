@@ -53,11 +53,20 @@ class PedidoManualIn(BaseModel):
 
 
 class PedidoManualCobroUnicoIn(PedidoManualIn):
-    """'Pedido manual cobro único': venta directa que captura el distribuidor a nombre de un cliente
-    registrado. No hay anticipo ni saldo: se cobra todo de una vez y el pedido nace ENTREGADO."""
+    """'Pedido manual cobro único': venta directa que captura el distribuidor. Puede ir a nombre de
+    un cliente registrado (correo_cliente) o, sin correo, de un comprador sin cuenta. No hay
+    anticipo ni saldo: se cobra todo de una vez y el pedido nace ENTREGADO."""
 
+    # Sin correo, la venta se registra a nombre del cliente genérico «Venta de mostrador»
+    correo_cliente: EmailStr | None = None
+    direccion_entrega: str = Field(default="Venta en mostrador", min_length=1, max_length=500)
     metodo: Literal["EFECTIVO", "TRANSFERENCIA"]
     comprobante_url: str | None = None
+
+    @field_validator("correo_cliente")
+    @classmethod
+    def correo_minusculas(cls, v: str | None) -> str | None:
+        return v.lower() if v is not None else None
 
     @field_validator("comprobante_url")
     @classmethod

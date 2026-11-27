@@ -62,10 +62,11 @@ def pedido_manual_cobro_unico(
     db: Session = Depends(get_db),
     id_distribuidor: uuid.UUID = Depends(require_distribuidor),
 ):
-    """'Pedido manual cobro único': venta directa a nombre de un cliente registrado (se identifica
-    por su correo). Sin anticipo ni saldo: se cobra el total en un solo pago, en efectivo o por
-    transferencia (con comprobante), y el pedido nace ENTREGADO, sin pasar por preparación ni
-    envío. Descuenta el stock de los lotes igual que cualquier otro pedido."""
+    """'Pedido manual cobro único': venta directa. Sin anticipo ni saldo: se cobra el total en un
+    solo pago, en efectivo o por transferencia (con comprobante), y el pedido nace ENTREGADO, sin
+    pasar por preparación ni envío. Descuenta el stock de los lotes igual que cualquier otro pedido.
+    Con `correo_cliente` va a nombre de ese cliente registrado; sin correo, a nombre del cliente
+    genérico «Venta de mostrador» (compradores sin cuenta)."""
     return pedidos_service.crear_manual_cobro_unico(db, id_distribuidor, data)
 
 
