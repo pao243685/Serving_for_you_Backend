@@ -121,6 +121,9 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 - `POST /pedidos/manual-cobro-unico` es la venta directa: sin anticipo ni saldo, con un solo pago por el 100 %
   (EFECTIVO, o TRANSFERENCIA con comprobante). El pedido nace `ENTREGADO` (paso 4) con `estado_cobro` PAGADO, descuenta
   stock como cualquier pedido y trae un único pago de tipo `FINAL` (no hay pago `ANTICIPO`). No se admite tarjeta.
+  `correo_cliente` es opcional: sin él, la venta va a nombre del cliente genérico «Venta de mostrador» (compradores sin
+  cuenta; no se puede iniciar sesión con él) y `direccion_entrega` también es opcional (por defecto «Venta en
+  mostrador»): úsala para anotar el nombre del comprador. Con correo, va a nombre de ese cliente registrado.
   El stepper de estos pedidos no tiene pasos 2 ni 3: muéstralos como omitidos.
 - `GET /me` devuelve `nombre` (el encargado, o el negocio si eres cliente) y `negocio`. No hay foto de perfil
   ni cargo ("Operaciones & Logística", "Gerente Operativo").
