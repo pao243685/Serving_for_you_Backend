@@ -9,6 +9,7 @@ from app.core.limiter import limiter
 from app.schemas.pedido import PedidoOut
 from app.schemas.pedido_distribuidor import (
     CancelarProveedorIn,
+    PedidoManualCobroUnicoIn,
     PedidoManualIn,
     PedidosDistribuidorPage,
     TabPedidosDistribuidor,
@@ -51,6 +52,21 @@ def generar_orden_manual(
     """'Generar orden manual': pedido a nombre de un cliente ya registrado (se identifica por
     su correo). Nace PENDIENTE y reserva el stock igual que uno hecho por el cliente."""
     return pedidos_service.crear_manual(db, id_distribuidor, data)
+
+
+@router.post("/pedidos/manual-cobro-unico", response_model=PedidoOut, status_code=201)
+@limiter.limit("20/minute")
+def pedido_manual_cobro_unico(
+    request: Request,
+    data: PedidoManualCobroUnicoIn,
+    db: Session = Depends(get_db),
+    id_distribuidor: uuid.UUID = Depends(require_distribuidor),
+):
+    """'Pedido manual cobro único': venta directa a nombre de un cliente registrado (se identifica
+    por su correo). Sin anticipo ni saldo: se cobra el total en un solo pago, en efectivo o por
+    transferencia (con comprobante), y el pedido nace ENTREGADO, sin pasar por preparación ni
+    envío. Descuenta el stock de los lotes igual que cualquier otro pedido."""
+    return pedidos_service.crear_manual_cobro_unico(db, id_distribuidor, data)
 
 
 @router.post("/pedidos/{id_pedido}/completar-armado", response_model=PedidoOut)

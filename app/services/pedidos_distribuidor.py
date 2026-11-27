@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import Conflicto, NoEncontrado
 from app.models import Cliente, Pedido
+from app.schemas.pago import LiquidacionIn
 from app.schemas.pedido import PedidoCreate, PedidoOut
 from app.schemas.pedido_distribuidor import (
     ConteosPedidosDistribuidor,
+    PedidoManualCobroUnicoIn,
     PedidoManualIn,
     PedidosDistribuidorPage,
     TabPedidosDistribuidor,
@@ -211,4 +213,25 @@ def crear_manual(db: Session, id_distribuidor: uuid.UUID, data: PedidoManualIn) 
             direccion_entrega=data.direccion_entrega,
             items=data.items,
         ),
+    )
+
+
+def crear_manual_cobro_unico(
+    db: Session, id_distribuidor: uuid.UUID, data: PedidoManualCobroUnicoIn
+) -> PedidoOut:
+    """Venta directa: reserva el stock como cualquier pedido, pero sin anticipo ni saldo. Se
+    registra un solo pago por el total y el pedido nace ENTREGADO, sin pasar por preparación
+    ni envío. El cliente debe estar registrado."""
+    cliente = db.scalar(select(Cliente).where(Cliente.correo == data.correo_cliente))
+    if cliente is None:
+        raise NoEncontrado("No hay un cliente registrado con ese correo")
+    return base.crear(
+        db,
+        cliente.id_cliente,
+        PedidoCreate(
+            id_distribuidor=id_distribuidor,
+            direccion_entrega=data.direccion_entrega,
+            items=data.items,
+        ),
+        cobro_unico=LiquidacionIn(metodo=data.metodo, comprobante_url=data.comprobante_url),
     )
