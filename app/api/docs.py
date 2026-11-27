@@ -24,7 +24,11 @@ from app.schemas.auth import LoginIn, RegistroCliente, RegistroDistribuidor, Tok
 from app.schemas.lote import LoteCreate
 from app.schemas.pago import ComprobanteIn, LiquidacionIn, RechazarIn, ValidarAnticipoIn
 from app.schemas.pedido import CancelarIn, PedidoCreate, PedidoOut
-from app.schemas.pedido_distribuidor import CancelarProveedorIn, PedidoManualIn
+from app.schemas.pedido_distribuidor import (
+    CancelarProveedorIn,
+    PedidoManualCobroUnicoIn,
+    PedidoManualIn,
+)
 from app.schemas.producto import ProductoCreate
 
 log = logging.getLogger(__name__)
@@ -94,7 +98,7 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 | Catálogo de repostería (distribuidor) | `GET /mis-productos`, `POST /productos`, `PATCH /productos/{id}`, `DELETE /productos/{id}`, `GET /categorias` |
 | Lotes y caducidades (y su modal) | `GET /lotes`, `POST /lotes`, `PATCH /lotes/{id}`, `DELETE /lotes/{id}`, `GET /productos/{id}/lotes` |
 | Cobranza y anticipos | `GET /cobranza?tab=&q=`, `POST /pedidos/{id}/anticipo/validar`, `POST /pedidos/{id}/anticipo/rechazar`, `POST /pedidos/{id}/liquidacion`, `POST /pedidos/{id}/reembolso` |
-| Pedidos en curso (distribuidor) | `GET /pedidos?tab=&q=`, `POST /pedidos/{id}/completar-armado`, `POST /pedidos/{id}/confirmar-entrega`, `POST /pedidos/{id}/cancelar-proveedor`, `POST /pedidos/manual` (Generar orden manual) |
+| Pedidos en curso (distribuidor) | `GET /pedidos?tab=&q=`, `POST /pedidos/{id}/completar-armado`, `POST /pedidos/{id}/confirmar-entrega`, `POST /pedidos/{id}/cancelar-proveedor`, `POST /pedidos/manual` (Generar orden manual), `POST /pedidos/manual-cobro-unico` (venta directa, un solo pago) |
 
 ## Lo que el diseño pide y la base de datos no guarda
 
@@ -114,6 +118,10 @@ El front no necesita preguntar el rol al iniciar sesión: la respuesta de login 
 - Horas del stepper de un pedido: paso 1 = `fecha_realizacion`; paso 2 (en preparación) = `fecha_validacion` del
   pago ANTICIPO; paso 4 = `fecha_entrega_real`. La hora de "En ruta" (paso 3) no se guarda.
 - La orden manual se captura con el correo de un cliente que ya esté registrado.
+- `POST /pedidos/manual-cobro-unico` es la venta directa: sin anticipo ni saldo, con un solo pago por el 100 %
+  (EFECTIVO, o TRANSFERENCIA con comprobante). El pedido nace `ENTREGADO` (paso 4) con `estado_cobro` PAGADO, descuenta
+  stock como cualquier pedido y trae un único pago de tipo `FINAL` (no hay pago `ANTICIPO`). No se admite tarjeta.
+  El stepper de estos pedidos no tiene pasos 2 ni 3: muéstralos como omitidos.
 - `GET /me` devuelve `nombre` (el encargado, o el negocio si eres cliente) y `negocio`. No hay foto de perfil
   ni cargo ("Operaciones & Logística", "Gerente Operativo").
 - En el carrito, el anticipo se calcula con `distribuidor.porcentaje_anticipo`, que viene en el catálogo.
@@ -298,6 +306,18 @@ ERRORES.update(
                 "Stock insuficiente de «Croissant Mantequilla»: disponible 30, pedido 31",
             ),
         },
+        ("POST", "/pedidos/manual-cobro-unico"): {
+            400: _e(
+                "Productos inválidos o monto demasiado pequeño",
+                "Uno o más productos no existen, están desactivados o no son de este distribuidor",
+                "El monto del pedido es demasiado pequeño",
+            ),
+            404: _e("No hay un cliente con ese correo", "No hay un cliente registrado con ese correo"),
+            409: _e(
+                "No alcanza el stock (no se descontó nada)",
+                "Stock insuficiente de «Croissant Mantequilla»: disponible 30, pedido 31",
+            ),
+        },
         ("POST", "/pedidos/{id_pedido}/completar-armado"): {
             404: _e(_NO_EXISTE, "Pedido no encontrado"),
             409: _e(
@@ -462,6 +482,13 @@ def _ejemplos() -> dict[type, dict]:
             "correo_cliente": "gerencia@cacaoygrano.com",
             "direccion_entrega": "Av. Álvaro Obregón 160, Col. Roma Norte, CDMX",
             "items": [{"id_producto": "5d0a8b7e-1c2f-4b3a-9e4d-6f7a8b9c0d1e", "cantidad": 12}],
+        },
+        PedidoManualCobroUnicoIn: {
+            "correo_cliente": "gerencia@cacaoygrano.com",
+            "direccion_entrega": "Entrega en mostrador",
+            "items": [{"id_producto": "5d0a8b7e-1c2f-4b3a-9e4d-6f7a8b9c0d1e", "cantidad": 12}],
+            "metodo": "TRANSFERENCIA",
+            "comprobante_url": comprobante,
         },
         ComprobanteIn: {"comprobante_url": comprobante},
         ValidarAnticipoIn: {"fecha_entrega_estimada": fecha},
