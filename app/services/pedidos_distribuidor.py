@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import UTC, datetime
 from typing import NoReturn
@@ -7,10 +8,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import Conflicto, NoEncontrado
+from app.core.security import hash_password
 from app.models import Cliente, Pedido
+from app.schemas.pago import LiquidacionIn
 from app.schemas.pedido import PedidoCreate, PedidoOut
 from app.schemas.pedido_distribuidor import (
     ConteosPedidosDistribuidor,
+    PedidoManualCobroUnicoIn,
     PedidoManualIn,
     PedidosDistribuidorPage,
     TabPedidosDistribuidor,
@@ -211,4 +215,55 @@ def crear_manual(db: Session, id_distribuidor: uuid.UUID, data: PedidoManualIn) 
             direccion_entrega=data.direccion_entrega,
             items=data.items,
         ),
+    )
+
+
+# Cliente genérico de las ventas de mostrador (compradores sin cuenta). El correo no es válido
+# a propósito (.invalid), y la contraseña es un secreto aleatorio que nadie conoce: no se puede
+# iniciar sesión con esta cuenta.
+MOSTRADOR_CORREO = "mostrador@mostrador.serving.invalid"
+MOSTRADOR_NOMBRE = "Venta de mostrador"
+
+
+def _cliente_mostrador(db: Session) -> Cliente:
+    """Devuelve el cliente de mostrador; se crea la primera vez que hace falta."""
+    cliente = db.scalar(select(Cliente).where(Cliente.correo == MOSTRADOR_CORREO))
+    if cliente is None:
+        try:
+            cliente = Cliente(
+                nombre=MOSTRADOR_NOMBRE,
+                correo=MOSTRADOR_CORREO,
+                contrasena=hash_password(secrets.token_urlsafe(48)),
+                telefono="0000000000",
+            )
+            db.add(cliente)
+            db.commit()
+        except IntegrityError:  # otra petición lo creó al mismo tiempo
+            db.rollback()
+            cliente = db.scalar(select(Cliente).where(Cliente.correo == MOSTRADOR_CORREO))
+    return cliente
+
+
+def crear_manual_cobro_unico(
+    db: Session, id_distribuidor: uuid.UUID, data: PedidoManualCobroUnicoIn
+) -> PedidoOut:
+    """Venta directa: reserva el stock como cualquier pedido, pero sin anticipo ni saldo. Se
+    registra un solo pago por el total y el pedido nace ENTREGADO, sin pasar por preparación
+    ni envío. Con correo_cliente va a nombre de ese cliente registrado; sin correo, del cliente
+    genérico «Venta de mostrador»."""
+    if data.correo_cliente is None:
+        cliente = _cliente_mostrador(db)
+    else:
+        cliente = db.scalar(select(Cliente).where(Cliente.correo == data.correo_cliente))
+        if cliente is None:
+            raise NoEncontrado("No hay un cliente registrado con ese correo")
+    return base.crear(
+        db,
+        cliente.id_cliente,
+        PedidoCreate(
+            id_distribuidor=id_distribuidor,
+            direccion_entrega=data.direccion_entrega,
+            items=data.items,
+        ),
+        cobro_unico=LiquidacionIn(metodo=data.metodo, comprobante_url=data.comprobante_url),
     )

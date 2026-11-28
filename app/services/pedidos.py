@@ -17,6 +17,7 @@ from app.models import (
     ProductoStock,
     Stock,
 )
+from app.schemas.pago import LiquidacionIn
 from app.schemas.pedido import (
     AccionesPedido,
     ClienteDePedido,
@@ -102,6 +103,8 @@ def _estado_cobro(pedido: Pedido, anticipo: Pago | None, final: Pago | None) -> 
         if not confirmado:
             return "SIN_COBROS"
         return "REEMBOLSADO" if anticipo.fecha_reembolso is not None else "REEMBOLSO_PENDIENTE"
+    if anticipo is None and final is not None and final.estado == "CONFIRMADO":
+        return "PAGADO"  # cobro único: se pagó todo de una vez, sin anticipo
     if anticipo is None or anticipo.estado in ("PENDIENTE", "RECHAZADO"):
         return "ANTICIPO_PENDIENTE"
     if anticipo.estado == "POR_VALIDAR":
@@ -237,7 +240,14 @@ def _armar(db: Session, pedidos: list[Pedido]) -> list[PedidoOut]:
 # ---------------------------------------------------------------- casos de uso (cliente)
 
 
-def crear(db: Session, id_cliente: uuid.UUID, data: PedidoCreate) -> PedidoOut:
+def crear(
+    db: Session,
+    id_cliente: uuid.UUID,
+    data: PedidoCreate,
+    cobro_unico: LiquidacionIn | None = None,
+) -> PedidoOut:
+    """Crea el pedido y reserva el stock. Con `cobro_unico` es una venta directa: sin anticipo,
+    con un solo pago confirmado por el total, y el pedido nace ENTREGADO."""
     if db.get(Cliente, id_cliente) is None:
         raise NoAutenticado("Cliente no encontrado")
     dist = db.get(Distribuidor, data.id_distribuidor)
@@ -297,14 +307,23 @@ def crear(db: Session, id_cliente: uuid.UUID, data: PedidoCreate) -> PedidoOut:
     total = _dinero(sum(cantidades[pid] * productos[pid].precio_unitario for pid in ids))
     anticipo = _dinero(total * float(dist.porcentaje_anticipo) / 100)
     saldo = _dinero(total - anticipo)
-    if anticipo <= 0:
+    if (total if cobro_unico is not None else anticipo) <= 0:
         db.rollback()
         raise AppError("El monto del pedido es demasiado pequeño")
 
+    # En un cobro único la entrega es inmediata: la base exige las dos fechas para ENTREGADO
+    extra = {}
+    if cobro_unico is not None:
+        extra = {
+            "estatus": "ENTREGADO",
+            "fecha_entrega_estimada": func.now(),
+            "fecha_entrega_real": func.now(),
+        }
     pedido = Pedido(
         cliente_id=id_cliente,
         distribuidor_id=dist.id_distribuidor,
         direccion_entrega=data.direccion_entrega,
+        **extra,
     )
     db.add(pedido)
     try:
@@ -325,25 +344,41 @@ def crear(db: Session, id_cliente: uuid.UUID, data: PedidoCreate) -> PedidoOut:
             )
             for pid, sid, cant in asignaciones
         )
-        db.add(
-            Pago(
-                pedido_id=pedido.id_pedido,
-                tipo="ANTICIPO",
-                monto=anticipo,
-                metodo="TRANSFERENCIA",  # el anticipo siempre es transferencia
-                referencia=_referencia(pedido.id_pedido, "ANTICIPO"),
-            )
-        )
-        if saldo > 0:  # con anticipo del 100% no hay pago final
+        if cobro_unico is not None:
+            ahora_pago = _ahora_utc()
             db.add(
                 Pago(
                     pedido_id=pedido.id_pedido,
-                    tipo="FINAL",
-                    monto=saldo,
-                    metodo="TRANSFERENCIA",  # se cambia a EFECTIVO al registrar el cobro
+                    tipo="FINAL",  # el único pago del pedido; no hay anticipo
+                    monto=total,
+                    estado="CONFIRMADO",
+                    metodo=cobro_unico.metodo,
                     referencia=_referencia(pedido.id_pedido, "FINAL"),
+                    comprobante_url=cobro_unico.comprobante_url,
+                    fecha_comprobante=ahora_pago if cobro_unico.comprobante_url else None,
+                    fecha_validacion=ahora_pago,
                 )
             )
+        else:
+            db.add(
+                Pago(
+                    pedido_id=pedido.id_pedido,
+                    tipo="ANTICIPO",
+                    monto=anticipo,
+                    metodo="TRANSFERENCIA",  # el anticipo siempre es transferencia
+                    referencia=_referencia(pedido.id_pedido, "ANTICIPO"),
+                )
+            )
+            if saldo > 0:  # con anticipo del 100% no hay pago final
+                db.add(
+                    Pago(
+                        pedido_id=pedido.id_pedido,
+                        tipo="FINAL",
+                        monto=saldo,
+                        metodo="TRANSFERENCIA",  # se cambia a EFECTIVO al registrar el cobro
+                        referencia=_referencia(pedido.id_pedido, "FINAL"),
+                    )
+                )
         db.commit()
     except IntegrityError:
         db.rollback()

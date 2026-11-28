@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.schemas.pago import _validar_comprobante
 from app.schemas.pedido import PedidoItemIn, PedidoOut
 
 TabPedidosDistribuidor = Literal["todos", "pendiente", "en_envio", "entregado", "cancelado"]
@@ -48,6 +49,34 @@ class PedidoManualIn(BaseModel):
         ids = [i.id_producto for i in self.items]
         if len(ids) != len(set(ids)):
             raise ValueError("Cada producto debe aparecer una sola vez; suma las cantidades")
+        return self
+
+
+class PedidoManualCobroUnicoIn(PedidoManualIn):
+    """'Pedido manual cobro único': venta directa que captura el distribuidor. Puede ir a nombre de
+    un cliente registrado (correo_cliente) o, sin correo, de un comprador sin cuenta. No hay
+    anticipo ni saldo: se cobra todo de una vez y el pedido nace ENTREGADO."""
+
+    # Sin correo, la venta se registra a nombre del cliente genérico «Venta de mostrador»
+    correo_cliente: EmailStr | None = None
+    direccion_entrega: str = Field(default="Venta en mostrador", min_length=1, max_length=500)
+    metodo: Literal["EFECTIVO", "TRANSFERENCIA"]
+    comprobante_url: str | None = None
+
+    @field_validator("correo_cliente")
+    @classmethod
+    def correo_minusculas(cls, v: str | None) -> str | None:
+        return v.lower() if v is not None else None
+
+    @field_validator("comprobante_url")
+    @classmethod
+    def url_valida(cls, v: str | None) -> str | None:
+        return _validar_comprobante(v) if v is not None else None
+
+    @model_validator(mode="after")
+    def transferencia_con_comprobante(self):
+        if self.metodo == "TRANSFERENCIA" and not self.comprobante_url:
+            raise ValueError("Una transferencia necesita el comprobante")
         return self
 
 
